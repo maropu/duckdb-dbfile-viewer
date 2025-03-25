@@ -23,7 +23,7 @@ export default function Home() {
     try {
       const buffer = await file.arrayBuffer();
       if (buffer.byteLength < FILE_HEADER_SIZE * 3) {
-        throw new Error('ファイルサイズが小さすぎます');
+        throw new Error('File size is too small');
       }
 
       const mainHeader = parseMainHeader(buffer);
@@ -35,7 +35,7 @@ export default function Home() {
       setFileAnalysis({ mainHeader, dbHeader1, dbHeader2, blocks, blockSize });
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '不明なエラーが発生しました');
+      setError(err instanceof Error ? err.message : 'An unknown error occurred');
       setFileAnalysis(null);
     }
   };
@@ -64,11 +64,11 @@ export default function Home() {
   return (
     <main className="min-h-screen p-8">
       <div className="max-w-6xl mx-auto">
-        <h1 className="text-3xl font-bold mb-8">DuckDB DBファイルビューアー</h1>
+        <h1 className="text-3xl font-bold mb-8">DuckDB Database File Viewer</h1>
 
         <div className="mb-8">
           <label className="block text-sm font-medium mb-2">
-            DuckDBのDBファイルを選択してください:
+            Select a DuckDB database file:
           </label>
           <input
             type="file"
@@ -92,11 +92,11 @@ export default function Home() {
           <div>
             <div className="grid grid-cols-2 gap-8">
               <div>
-                {renderHeader('メインヘッダー', fileAnalysis.mainHeader)}
-                {renderHeader('データベースヘッダー 1', fileAnalysis.dbHeader1)}
+                {renderHeader('Main Header', fileAnalysis.mainHeader)}
+                {renderHeader('Database Header 1', fileAnalysis.dbHeader1)}
               </div>
               <div>
-                {renderHeader('データベースヘッダー 2', fileAnalysis.dbHeader2)}
+                {renderHeader('Database Header 2', fileAnalysis.dbHeader2)}
                 <BlockVisualizer blocks={fileAnalysis.blocks} blockSize={fileAnalysis.blockSize} />
               </div>
             </div>

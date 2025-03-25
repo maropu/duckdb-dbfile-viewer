@@ -13,10 +13,10 @@ const statusColors = {
 };
 
 const statusLabels = {
-  [BlockStatus.FREE]: 'フリーブロック',
-  [BlockStatus.USED]: '使用中',
-  [BlockStatus.METADATA]: 'メタデータ',
-  [BlockStatus.INVALID]: '無効'
+  [BlockStatus.FREE]: 'Free Block',
+  [BlockStatus.USED]: 'In Use',
+  [BlockStatus.METADATA]: 'Metadata',
+  [BlockStatus.INVALID]: 'Invalid'
 };
 
 function formatSize(bytes: number): string {
@@ -36,13 +36,13 @@ export default function BlockVisualizer({ blocks, blockSize }: BlockVisualizerPr
   return (
     <div className="mt-8">
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-semibold">ブロック使用状況</h2>
+        <h2 className="text-xl font-semibold">Block Usage Status</h2>
         <div className="text-sm text-gray-600">
-          ブロックサイズ: {formatSize(blockSize)}
+          Block Size: {formatSize(blockSize)}
         </div>
       </div>
 
-      {/* 凡例 */}
+      {/* Legend */}
       <div className="mb-4 flex gap-4">
         {Object.entries(statusColors).map(([status, color]) => (
           <div key={status} className="flex items-center">
@@ -52,7 +52,7 @@ export default function BlockVisualizer({ blocks, blockSize }: BlockVisualizerPr
         ))}
       </div>
 
-      {/* ブロックグリッド */}
+      {/* Block Grid */}
       <div className="grid grid-cols-16 gap-1 bg-gray-100 p-4 rounded-lg">
         {blocks.map((block) => (
           <div
