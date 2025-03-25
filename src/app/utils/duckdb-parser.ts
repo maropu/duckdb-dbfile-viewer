@@ -2,7 +2,6 @@ export const MAGIC_BYTES = "DUCK";
 export const FILE_HEADER_SIZE = 4096;
 export const MAX_VERSION_SIZE = 64;
 export const CHECKSUM_SIZE = 8;
-export const BLOCK_SIZE = 256 * 1024; // 256KB
 export const BLOCK_HEADER_SIZE = 8; // チェックサムのサイズ
 
 export enum BlockStatus {
@@ -137,21 +136,22 @@ export function analyzeBlocks(
   const freeBlocks = new Set<number>();
 
   // メタデータブロックを追加
-  if (activeHeader.metaBlock !== 0xFFFFFFFFFFFFFFFFn) {
+  if (activeHeader.metaBlock !== BigInt("0xFFFFFFFFFFFFFFFF")) {
     metadataBlocks.add(Number(activeHeader.metaBlock));
   }
 
   // フリーリストブロックを追加
-  if (activeHeader.freeList !== 0xFFFFFFFFFFFFFFFFn) {
+  if (activeHeader.freeList !== BigInt("0xFFFFFFFFFFFFFFFF")) {
     freeBlocks.add(Number(activeHeader.freeList));
   }
 
   // ブロックの解析
   const startOffset = FILE_HEADER_SIZE * 3; // ヘッダー3つ分をスキップ
   const totalBlocks = Number(activeHeader.blockCount);
+  const blockSize = Number(activeHeader.blockAllocSize);
 
   for (let i = 0; i < totalBlocks; i++) {
-    const offset = startOffset + (i * BLOCK_SIZE);
+    const offset = startOffset + (i * blockSize);
     if (offset + BLOCK_HEADER_SIZE > buffer.byteLength) {
       break;
     }
