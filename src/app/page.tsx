@@ -10,6 +10,7 @@ interface FileAnalysis {
   dbHeader2: DatabaseHeader;
   blocks: Block[];
   blockSize: number;
+  activeHeader: DatabaseHeader;
 }
 
 export default function Home() {
@@ -31,8 +32,9 @@ export default function Home() {
       const dbHeader2 = parseDatabaseHeader(buffer, FILE_HEADER_SIZE * 2);
       const blocks = analyzeBlocks(buffer, dbHeader1, dbHeader2);
       const blockSize = Number(dbHeader1.iteration > dbHeader2.iteration ? dbHeader1.blockAllocSize : dbHeader2.blockAllocSize);
+      const activeHeader = dbHeader1.iteration > dbHeader2.iteration ? dbHeader1 : dbHeader2;
 
-      setFileAnalysis({ mainHeader, dbHeader1, dbHeader2, blocks, blockSize });
+      setFileAnalysis({ mainHeader, dbHeader1, dbHeader2, blocks, blockSize, activeHeader });
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unknown error occurred');
@@ -93,10 +95,9 @@ export default function Home() {
             <div className="grid grid-cols-2 gap-8">
               <div>
                 {renderHeader('Main Header', fileAnalysis.mainHeader)}
-                {renderHeader('Database Header 1', fileAnalysis.dbHeader1)}
+                {renderHeader('Active Database Header', fileAnalysis.activeHeader)}
               </div>
               <div>
-                {renderHeader('Database Header 2', fileAnalysis.dbHeader2)}
                 <BlockVisualizer blocks={fileAnalysis.blocks} blockSize={fileAnalysis.blockSize} />
               </div>
             </div>
