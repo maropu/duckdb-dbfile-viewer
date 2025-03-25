@@ -13,9 +13,9 @@ export enum BlockStatus {
 
 export interface Block {
   id: number;
-  offset: number;
   status: BlockStatus;
-  checksum: bigint;
+  offset?: number;
+  checksum?: bigint;
 }
 
 export interface MainHeader {
@@ -120,57 +120,131 @@ export function parseDatabaseHeader(buffer: ArrayBuffer, headerOffset: number): 
   };
 }
 
-export function analyzeBlocks(
-  buffer: ArrayBuffer,
-  dbHeader1: DatabaseHeader,
-  dbHeader2: DatabaseHeader
-): Block[] {
+// 定数の追加
+const INVALID_BLOCK = Number("0xFFFFFFFFFFFFFFFF");
+const BLOCK_START = FILE_HEADER_SIZE * 3;
+
+export function analyzeBlocks(buffer: ArrayBuffer, dbHeader1: DatabaseHeader, dbHeader2: DatabaseHeader): Block[] {
   const blocks: Block[] = [];
-  const view = new DataView(buffer);
-
-  // アクティブなヘッダーを特定（イテレーション数が大きい方）
+  const blockSize = Number(dbHeader1.iteration > dbHeader2.iteration ? dbHeader1.blockAllocSize : dbHeader2.blockAllocSize);
   const activeHeader = dbHeader1.iteration > dbHeader2.iteration ? dbHeader1 : dbHeader2;
-
-  // メタデータブロックとフリーリストを追跡するためのセット
-  const metadataBlocks = new Set<number>();
-  const freeBlocks = new Set<number>();
-
-  // メタデータブロックを追加
-  if (activeHeader.metaBlock !== BigInt("0xFFFFFFFFFFFFFFFF")) {
-    metadataBlocks.add(Number(activeHeader.metaBlock));
-  }
-
-  // フリーリストブロックを追加
-  if (activeHeader.freeList !== BigInt("0xFFFFFFFFFFFFFFFF")) {
-    freeBlocks.add(Number(activeHeader.freeList));
-  }
-
-  // ブロックの解析
-  const startOffset = FILE_HEADER_SIZE * 3; // ヘッダー3つ分をスキップ
   const totalBlocks = Number(activeHeader.blockCount);
-  const blockSize = Number(activeHeader.blockAllocSize);
+  const freeBlocks = new Set<number>();
+  const metadataBlocks = new Set<number>();
 
-  for (let i = 0; i < totalBlocks; i++) {
-    const offset = startOffset + (i * blockSize);
-    if (offset + BLOCK_HEADER_SIZE > buffer.byteLength) {
+  // メタブロックのサイズを計算（ブロックサイズからヘッダー部分を引いたもの）
+  const metadataBlockSize = blockSize - 8; // 8バイトは次のブロックへのポインタ
+
+  // BigIntから安全にNumberに変換する関数
+  const safeToNumber = (bigIntValue: bigint): number => {
+    if (bigIntValue === BigInt("0xFFFFFFFFFFFFFFFF")) {
+      return INVALID_BLOCK;
+    }
+    // NumberのMAX_SAFE_INTEGERを超える値はINVALID_BLOCKとして扱う
+    if (bigIntValue > BigInt(Number.MAX_SAFE_INTEGER)) {
+      console.warn(`Unsafe BigInt conversion: ${bigIntValue} is larger than ${Number.MAX_SAFE_INTEGER}`);
+      return INVALID_BLOCK;
+    }
+    return Number(bigIntValue);
+  };
+
+  // フリーリストのチェーンを追跡
+  let currentFreeListBlock = safeToNumber(activeHeader.freeList);
+  let remainingFreeBlocks = 0; // 残りの読み取るべきフリーブロック数
+
+  while (currentFreeListBlock !== INVALID_BLOCK) {
+    try {
+      const blockOffset = BLOCK_START + currentFreeListBlock * blockSize;
+      // バッファのサイズを超えないか確認
+      if (blockOffset < 0 || blockOffset >= buffer.byteLength) {
+        console.error(`Invalid block offset: ${blockOffset}, buffer size: ${buffer.byteLength}`);
+        break;
+      }
+      const view = new DataView(buffer, blockOffset);
+
+      // 次のメタブロックへのポインタを読み取る（全てのメタブロックの先頭8バイト）
+      const nextBlock = safeToNumber(view.getBigUint64(0, true));
+      let offset = 8; // 次のポインタの後
+
+      if (currentFreeListBlock === safeToNumber(activeHeader.freeList)) {
+        // 最初のメタブロックの場合のみ、フリーブロックの総数を読み取る
+        const freeListCount = Number(view.getBigUint64(offset, true));
+        // 不正な値のチェック
+        if (freeListCount < 0) {
+          console.error(`Invalid freeListCount: ${freeListCount}`);
+          break;
+        }
+        remainingFreeBlocks = freeListCount; // 総数を設定
+        offset += 8;
+      }
+
+      if (remainingFreeBlocks > 0) {
+        // このブロックで読み取り可能なフリーブロックIDの数を計算
+        const maxIdsInBlock = Math.floor((blockSize - offset) / 8);
+        const idsToRead = Math.min(maxIdsInBlock, remainingFreeBlocks);
+
+        // フリーブロックのIDを読み取る
+        for (let i = 0; i < idsToRead; i++) {
+          const blockId = safeToNumber(view.getBigUint64(offset, true));
+          if (blockId !== INVALID_BLOCK) {
+            freeBlocks.add(blockId);
+          }
+          offset += 8;
+        }
+        remainingFreeBlocks -= idsToRead;
+      }
+
+      // 次のメタブロックへ移動
+      currentFreeListBlock = nextBlock;
+    } catch (error) {
+      console.error(`Error processing free list block ${currentFreeListBlock}:`, error);
       break;
     }
+  }
 
-    const checksum = view.getBigUint64(offset, true);
-    let status = BlockStatus.USED;
-
-    if (metadataBlocks.has(i)) {
-      status = BlockStatus.METADATA;
-    } else if (freeBlocks.has(i)) {
-      status = BlockStatus.FREE;
+  // メタデータブロックのチェーンを追跡
+  let currentMetaBlock = safeToNumber(activeHeader.metaBlock);
+  while (currentMetaBlock !== INVALID_BLOCK) {
+    try {
+      metadataBlocks.add(currentMetaBlock);
+      const blockOffset = BLOCK_START + currentMetaBlock * blockSize;
+      // バッファのサイズを超えないか確認
+      if (blockOffset < 0 || blockOffset >= buffer.byteLength) {
+        console.error(`Invalid meta block offset: ${blockOffset}, buffer size: ${buffer.byteLength}`);
+        break;
+      }
+      const view = new DataView(buffer, blockOffset);
+      currentMetaBlock = safeToNumber(view.getBigUint64(0, true));
+    } catch (error) {
+      console.error(`Error processing metadata block ${currentMetaBlock}:`, error);
+      break;
     }
+  }
 
-    blocks.push({
-      id: i,
-      offset,
-      status,
-      checksum
-    });
+  // ブロックの状態を設定
+  for (let i = 0; i < totalBlocks; i++) {
+    try {
+      const offset = BLOCK_START + i * blockSize;
+      // バッファのサイズを超えないか確認
+      if (offset < 0 || offset >= buffer.byteLength) {
+        console.error(`Invalid block offset for block ${i}: ${offset}, buffer size: ${buffer.byteLength}`);
+        blocks.push({ id: i, status: BlockStatus.INVALID });
+        continue;
+      }
+      const view = new DataView(buffer, offset);
+      const checksum = view.getBigUint64(0, true);
+
+      if (metadataBlocks.has(i)) {
+        blocks.push({ id: i, status: BlockStatus.METADATA, offset, checksum });
+      } else if (freeBlocks.has(i)) {
+        blocks.push({ id: i, status: BlockStatus.FREE, offset, checksum });
+      } else {
+        blocks.push({ id: i, status: BlockStatus.USED, offset, checksum });
+      }
+    } catch (error) {
+      console.error(`Error processing block ${i}:`, error);
+      blocks.push({ id: i, status: BlockStatus.INVALID });
+    }
   }
 
   return blocks;

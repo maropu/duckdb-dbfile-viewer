@@ -46,6 +46,9 @@ export default function Home() {
     if (Array.isArray(value)) {
       return value.map(v => v.toString()).join(', ');
     }
+    if (typeof value === 'bigint' && value === BigInt("0xFFFFFFFFFFFFFFFF")) {
+      return '<invalid>';
+    }
     return value.toString();
   };
 
