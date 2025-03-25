@@ -6,7 +6,7 @@ interface BlockVisualizerProps {
 }
 
 const statusColors = {
-  [BlockStatus.FREE]: 'bg-gray-200',
+  [BlockStatus.FREE]: 'bg-yellow-400',
   [BlockStatus.USED]: 'bg-blue-500',
   [BlockStatus.METADATA]: 'bg-green-500',
   [BlockStatus.INVALID]: 'bg-red-500'
