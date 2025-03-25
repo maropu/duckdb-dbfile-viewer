@@ -2,6 +2,7 @@ import { Block, BlockStatus } from '../utils/duckdb-parser';
 
 interface BlockVisualizerProps {
   blocks: Block[];
+  blockSize: number;
 }
 
 const statusColors = {
@@ -18,10 +19,28 @@ const statusLabels = {
   [BlockStatus.INVALID]: '無効'
 };
 
-export default function BlockVisualizer({ blocks }: BlockVisualizerProps) {
+function formatSize(bytes: number): string {
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let size = bytes;
+  let unitIndex = 0;
+
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex++;
+  }
+
+  return `${size.toFixed(1)} ${units[unitIndex]}`;
+}
+
+export default function BlockVisualizer({ blocks, blockSize }: BlockVisualizerProps) {
   return (
     <div className="mt-8">
-      <h2 className="text-xl font-semibold mb-4">ブロック使用状況</h2>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-xl font-semibold">ブロック使用状況</h2>
+        <div className="text-sm text-gray-600">
+          ブロックサイズ: {formatSize(blockSize)}
+        </div>
+      </div>
 
       {/* 凡例 */}
       <div className="mb-4 flex gap-4">
@@ -42,7 +61,8 @@ export default function BlockVisualizer({ blocks }: BlockVisualizerProps) {
             title={`Block ${block.id}
 Status: ${statusLabels[block.status]}
 Offset: ${block.offset}
-Checksum: ${block.checksum}`}
+Checksum: ${block.checksum}
+Size: ${formatSize(blockSize)}`}
           />
         ))}
       </div>

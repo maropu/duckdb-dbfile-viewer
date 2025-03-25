@@ -9,6 +9,7 @@ interface FileAnalysis {
   dbHeader1: DatabaseHeader;
   dbHeader2: DatabaseHeader;
   blocks: Block[];
+  blockSize: number;
 }
 
 export default function Home() {
@@ -29,8 +30,9 @@ export default function Home() {
       const dbHeader1 = parseDatabaseHeader(buffer, FILE_HEADER_SIZE);
       const dbHeader2 = parseDatabaseHeader(buffer, FILE_HEADER_SIZE * 2);
       const blocks = analyzeBlocks(buffer, dbHeader1, dbHeader2);
+      const blockSize = Number(dbHeader1.iteration > dbHeader2.iteration ? dbHeader1.blockAllocSize : dbHeader2.blockAllocSize);
 
-      setFileAnalysis({ mainHeader, dbHeader1, dbHeader2, blocks });
+      setFileAnalysis({ mainHeader, dbHeader1, dbHeader2, blocks, blockSize });
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : '不明なエラーが発生しました');
@@ -95,7 +97,7 @@ export default function Home() {
               </div>
               <div>
                 {renderHeader('データベースヘッダー 2', fileAnalysis.dbHeader2)}
-                <BlockVisualizer blocks={fileAnalysis.blocks} />
+                <BlockVisualizer blocks={fileAnalysis.blocks} blockSize={fileAnalysis.blockSize} />
               </div>
             </div>
           </div>
