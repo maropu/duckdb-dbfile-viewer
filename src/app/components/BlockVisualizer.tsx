@@ -33,12 +33,20 @@ function formatSize(bytes: number): string {
 }
 
 export default function BlockVisualizer({ blocks, blockSize }: BlockVisualizerProps) {
+  // メタデータブロックの分割サイズを計算
+  const metadataBlockSize = Math.floor(blockSize / 64);
+
   return (
     <div className="mt-8">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-semibold">Block Usage Status</h2>
         <div className="text-sm text-gray-600">
           Block Size: {formatSize(blockSize)}
+          {blocks.some(block => block.status === BlockStatus.METADATA) && (
+            <span className="ml-2">
+              (Metadata Sub-block: {formatSize(metadataBlockSize)})
+            </span>
+          )}
         </div>
       </div>
 
@@ -55,15 +63,32 @@ export default function BlockVisualizer({ blocks, blockSize }: BlockVisualizerPr
       {/* Block Grid */}
       <div className="grid grid-cols-16 gap-1 bg-gray-100 p-4 rounded-lg">
         {blocks.map((block) => (
-          <div
-            key={block.id}
-            className={`w-6 h-6 ${statusColors[block.status]} rounded cursor-pointer transition-colors hover:opacity-80`}
-            title={`Block ${block.id}
+          <div key={block.id} className="relative w-6 h-6">
+            {block.status === BlockStatus.METADATA ? (
+              <div className="absolute inset-0 grid grid-cols-8 gap-[0.5px] bg-gray-300 p-[0.5px] rounded">
+                {Array.from({ length: 64 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className={`${statusColors[BlockStatus.METADATA]}`}
+                    title={`Metadata Sub-block ${i}
+Block ${block.id}
+Status: ${statusLabels[block.status]}
+Offset: ${block.offset + (i * metadataBlockSize)}
+Size: ${formatSize(metadataBlockSize)}`}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div
+                className={`w-full h-full ${statusColors[block.status]} rounded cursor-pointer transition-colors hover:opacity-80`}
+                title={`Block ${block.id}
 Status: ${statusLabels[block.status]}
 Offset: ${block.offset}
 Checksum: ${block.checksum}
 Size: ${formatSize(blockSize)}`}
-          />
+              />
+            )}
+          </div>
         ))}
       </div>
     </div>
