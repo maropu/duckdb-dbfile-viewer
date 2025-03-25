@@ -1,12 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { MainHeader, DatabaseHeader, FILE_HEADER_SIZE, parseMainHeader, parseDatabaseHeader } from './utils/duckdb-parser';
+import { MainHeader, DatabaseHeader, FILE_HEADER_SIZE, parseMainHeader, parseDatabaseHeader, analyzeBlocks, Block } from './utils/duckdb-parser';
+import BlockVisualizer from './components/BlockVisualizer';
 
 interface FileAnalysis {
   mainHeader: MainHeader;
   dbHeader1: DatabaseHeader;
   dbHeader2: DatabaseHeader;
+  blocks: Block[];
 }
 
 export default function Home() {
@@ -26,8 +28,9 @@ export default function Home() {
       const mainHeader = parseMainHeader(buffer);
       const dbHeader1 = parseDatabaseHeader(buffer, FILE_HEADER_SIZE);
       const dbHeader2 = parseDatabaseHeader(buffer, FILE_HEADER_SIZE * 2);
+      const blocks = analyzeBlocks(buffer, dbHeader1, dbHeader2);
 
-      setFileAnalysis({ mainHeader, dbHeader1, dbHeader2 });
+      setFileAnalysis({ mainHeader, dbHeader1, dbHeader2, blocks });
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : '不明なエラーが発生しました');
@@ -58,7 +61,7 @@ export default function Home() {
 
   return (
     <main className="min-h-screen p-8">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-6xl mx-auto">
         <h1 className="text-3xl font-bold mb-8">DuckDB DBファイルビューアー</h1>
 
         <div className="mb-8">
@@ -85,9 +88,16 @@ export default function Home() {
 
         {fileAnalysis && (
           <div>
-            {renderHeader('メインヘッダー', fileAnalysis.mainHeader)}
-            {renderHeader('データベースヘッダー 1', fileAnalysis.dbHeader1)}
-            {renderHeader('データベースヘッダー 2', fileAnalysis.dbHeader2)}
+            <div className="grid grid-cols-2 gap-8">
+              <div>
+                {renderHeader('メインヘッダー', fileAnalysis.mainHeader)}
+                {renderHeader('データベースヘッダー 1', fileAnalysis.dbHeader1)}
+              </div>
+              <div>
+                {renderHeader('データベースヘッダー 2', fileAnalysis.dbHeader2)}
+                <BlockVisualizer blocks={fileAnalysis.blocks} />
+              </div>
+            </div>
           </div>
         )}
       </div>
