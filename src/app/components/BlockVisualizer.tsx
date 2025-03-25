@@ -33,7 +33,7 @@ function formatSize(bytes: number): string {
 }
 
 export default function BlockVisualizer({ blocks, blockSize }: BlockVisualizerProps) {
-  // メタデータブロックの分割サイズを計算
+  // Calculate the sub-block size for metadata blocks
   const metadataBlockSize = Math.floor(blockSize / 64);
 
   return (
@@ -73,7 +73,7 @@ export default function BlockVisualizer({ blocks, blockSize }: BlockVisualizerPr
                     title={`Metadata Sub-block ${i}
 Block ${block.id}
 Status: ${statusLabels[block.status]}
-Offset: ${block.offset + (i * metadataBlockSize)}
+Offset: ${block.offset !== undefined ? block.offset + (i * metadataBlockSize) : 'N/A'}
 Size: ${formatSize(metadataBlockSize)}`}
                   />
                 ))}
@@ -83,8 +83,8 @@ Size: ${formatSize(metadataBlockSize)}`}
                 className={`w-full h-full ${statusColors[block.status]} rounded cursor-pointer transition-colors hover:opacity-80`}
                 title={`Block ${block.id}
 Status: ${statusLabels[block.status]}
-Offset: ${block.offset}
-Checksum: ${block.checksum}
+Offset: ${block.offset !== undefined ? block.offset : 'N/A'}
+Checksum: ${block.checksum !== undefined ? block.checksum : 'N/A'}
 Size: ${formatSize(blockSize)}`}
               />
             )}

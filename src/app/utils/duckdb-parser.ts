@@ -2,7 +2,7 @@ export const MAGIC_BYTES = "DUCK";
 export const FILE_HEADER_SIZE = 4096;
 export const MAX_VERSION_SIZE = 64;
 export const CHECKSUM_SIZE = 8;
-export const BLOCK_HEADER_SIZE = 8; // チェックサムのサイズ
+export const BLOCK_HEADER_SIZE = 8; // Size of the checksum
 
 export enum BlockStatus {
   FREE = 'free',
@@ -42,29 +42,29 @@ export function parseMainHeader(buffer: ArrayBuffer): MainHeader {
   const view = new DataView(buffer);
   let offset = 0;
 
-  // チェックサムの読み取り
+  // Read checksum
   const checksum = view.getBigUint64(offset, true);
   offset += CHECKSUM_SIZE;
 
-  // マジックバイトのチェック
+  // Check magic bytes
   const magic = new TextDecoder().decode(new Uint8Array(buffer, offset, 4));
   if (magic !== MAGIC_BYTES) {
     throw new Error('Invalid DuckDB file format');
   }
   offset += 4;
 
-  // バージョン番号の読み取り
+  // Read version number
   const versionNumber = view.getBigUint64(offset, true);
   offset += 8;
 
-  // フラグの読み取り（4つのフラグ）
+  // Read flags (4 flags)
   const flags: bigint[] = [];
   for (let i = 0; i < 4; i++) {
     flags.push(view.getBigUint64(offset, true));
     offset += 8;
   }
 
-  // バージョン文字列の読み取り
+  // Read version string
   const libraryVersion = new TextDecoder().decode(new Uint8Array(buffer, offset, MAX_VERSION_SIZE)).replace(/\0+$/, '');
   offset += MAX_VERSION_SIZE;
 
@@ -84,7 +84,7 @@ export function parseDatabaseHeader(buffer: ArrayBuffer, headerOffset: number): 
   const view = new DataView(buffer);
   let offset = headerOffset;
 
-  // チェックサムの読み取り
+  // Read checksum
   const checksum = view.getBigUint64(offset, true);
   offset += CHECKSUM_SIZE;
 
@@ -120,7 +120,7 @@ export function parseDatabaseHeader(buffer: ArrayBuffer, headerOffset: number): 
   };
 }
 
-// 定数の追加
+// Adding constants
 const INVALID_BLOCK = Number("0xFFFFFFFFFFFFFFFF");
 const BLOCK_START = FILE_HEADER_SIZE * 3;
 
@@ -132,15 +132,15 @@ export function analyzeBlocks(buffer: ArrayBuffer, dbHeader1: DatabaseHeader, db
   const freeBlocks = new Set<number>();
   const metadataBlocks = new Set<number>();
 
-  // メタブロックのサイズを計算（ブロックサイズからヘッダー部分を引いたもの）
-  const metadataBlockSize = blockSize - 8; // 8バイトは次のブロックへのポインタ
+  // Calculate the size of a metadata block (block size minus header part)
+  const metadataBlockSize = blockSize - 8; // 8 bytes for the pointer to the next block
 
-  // BigIntから安全にNumberに変換する関数
+  // Function to safely convert BigInt to Number
   const safeToNumber = (bigIntValue: bigint): number => {
     if (bigIntValue === BigInt("0xFFFFFFFFFFFFFFFF")) {
       return INVALID_BLOCK;
     }
-    // NumberのMAX_SAFE_INTEGERを超える値はINVALID_BLOCKとして扱う
+    // Treat values larger than MAX_SAFE_INTEGER as INVALID_BLOCK
     if (bigIntValue > BigInt(Number.MAX_SAFE_INTEGER)) {
       console.warn(`Unsafe BigInt conversion: ${bigIntValue} is larger than ${Number.MAX_SAFE_INTEGER}`);
       return INVALID_BLOCK;
@@ -148,42 +148,42 @@ export function analyzeBlocks(buffer: ArrayBuffer, dbHeader1: DatabaseHeader, db
     return Number(bigIntValue);
   };
 
-  // フリーリストのチェーンを追跡
+  // Track the freelist chain
   let currentFreeListBlock = safeToNumber(activeHeader.freeList);
-  let remainingFreeBlocks = 0; // 残りの読み取るべきフリーブロック数
+  let remainingFreeBlocks = 0; // Number of remaining free blocks to read
 
   while (currentFreeListBlock !== INVALID_BLOCK) {
     try {
       const blockOffset = BLOCK_START + currentFreeListBlock * blockSize;
-      // バッファのサイズを超えないか確認
+      // Check if not exceeding buffer size
       if (blockOffset < 0 || blockOffset >= buffer.byteLength) {
         console.error(`Invalid block offset: ${blockOffset}, buffer size: ${buffer.byteLength}`);
         break;
       }
       const view = new DataView(buffer, blockOffset);
 
-      // 次のメタブロックへのポインタを読み取る（全てのメタブロックの先頭8バイト）
+      // Read pointer to the next metablock (first 8 bytes of all metablocks)
       const nextBlock = safeToNumber(view.getBigUint64(0, true));
-      let offset = 8; // 次のポインタの後
+      let offset = 8; // After the next pointer
 
       if (currentFreeListBlock === safeToNumber(activeHeader.freeList)) {
-        // 最初のメタブロックの場合のみ、フリーブロックの総数を読み取る
+        // Only for the first metablock, read the total number of free blocks
         const freeListCount = Number(view.getBigUint64(offset, true));
-        // 不正な値のチェック
+        // Check for invalid values
         if (freeListCount < 0) {
           console.error(`Invalid freeListCount: ${freeListCount}`);
           break;
         }
-        remainingFreeBlocks = freeListCount; // 総数を設定
+        remainingFreeBlocks = freeListCount; // Set the total count
         offset += 8;
       }
 
       if (remainingFreeBlocks > 0) {
-        // このブロックで読み取り可能なフリーブロックIDの数を計算
+        // Calculate how many free block IDs can be read from this block
         const maxIdsInBlock = Math.floor((blockSize - offset) / 8);
         const idsToRead = Math.min(maxIdsInBlock, remainingFreeBlocks);
 
-        // フリーブロックのIDを読み取る
+        // Read free block IDs
         for (let i = 0; i < idsToRead; i++) {
           const blockId = safeToNumber(view.getBigUint64(offset, true));
           if (blockId !== INVALID_BLOCK) {
@@ -194,7 +194,7 @@ export function analyzeBlocks(buffer: ArrayBuffer, dbHeader1: DatabaseHeader, db
         remainingFreeBlocks -= idsToRead;
       }
 
-      // 次のメタブロックへ移動
+      // Move to the next metablock
       currentFreeListBlock = nextBlock;
     } catch (error) {
       console.error(`Error processing free list block ${currentFreeListBlock}:`, error);
@@ -202,13 +202,13 @@ export function analyzeBlocks(buffer: ArrayBuffer, dbHeader1: DatabaseHeader, db
     }
   }
 
-  // メタデータブロックのチェーンを追跡
+  // Track the metadata block chain
   let currentMetaBlock = safeToNumber(activeHeader.metaBlock);
   while (currentMetaBlock !== INVALID_BLOCK) {
     try {
       metadataBlocks.add(currentMetaBlock);
       const blockOffset = BLOCK_START + currentMetaBlock * blockSize;
-      // バッファのサイズを超えないか確認
+      // Check if not exceeding buffer size
       if (blockOffset < 0 || blockOffset >= buffer.byteLength) {
         console.error(`Invalid meta block offset: ${blockOffset}, buffer size: ${buffer.byteLength}`);
         break;
@@ -221,11 +221,11 @@ export function analyzeBlocks(buffer: ArrayBuffer, dbHeader1: DatabaseHeader, db
     }
   }
 
-  // ブロックの状態を設定
+  // Set the status of blocks
   for (let i = 0; i < totalBlocks; i++) {
     try {
       const offset = BLOCK_START + i * blockSize;
-      // バッファのサイズを超えないか確認
+      // Check if not exceeding buffer size
       if (offset < 0 || offset >= buffer.byteLength) {
         console.error(`Invalid block offset for block ${i}: ${offset}, buffer size: ${buffer.byteLength}`);
         blocks.push({ id: i, status: BlockStatus.INVALID });
