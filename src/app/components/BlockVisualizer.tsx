@@ -13,8 +13,8 @@ const statusColors = {
 };
 
 const statusLabels = {
-  [BlockStatus.FREE]: 'Free Block',
-  [BlockStatus.USED]: 'In Use',
+  [BlockStatus.FREE]: 'Free',
+  [BlockStatus.USED]: 'Data',
   [BlockStatus.METADATA]: 'Metadata',
   [BlockStatus.INVALID]: 'Invalid'
 };

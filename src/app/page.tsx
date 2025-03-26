@@ -46,7 +46,7 @@ export default function Home() {
     if (Array.isArray(value)) {
       return value.map(v => v.toString()).join(', ');
     }
-    if (typeof value === 'bigint' && value === BigInt("0xFFFFFFFFFFFFFFFF")) {
+    if (typeof value === 'bigint' && value === BigInt("2449958197289549827")) {
       return '<invalid>';
     }
     if (typeof value === 'object' && value !== null) {
