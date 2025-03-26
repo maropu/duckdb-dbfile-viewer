@@ -42,12 +42,18 @@ export default function Home() {
     }
   };
 
-  const renderValue = (value: bigint | string | bigint[]) => {
+  const renderValue = (value: any) => {
     if (Array.isArray(value)) {
       return value.map(v => v.toString()).join(', ');
     }
     if (typeof value === 'bigint' && value === BigInt("0xFFFFFFFFFFFFFFFF")) {
       return '<invalid>';
+    }
+    if (typeof value === 'object' && value !== null) {
+      if ('blockId' in value && 'blockIndex' in value) {
+        return `Block ID: ${value.blockId.toString()} | Index: ${value.blockIndex}`;
+      }
+      return JSON.stringify(value);
     }
     return value.toString();
   };

@@ -55,13 +55,13 @@ export default function BlockVisualizer({ blocks, blockSize }: BlockVisualizerPr
       {/* Block Grid */}
       <div className="grid grid-cols-16 gap-1 bg-gray-100 p-4 rounded-lg">
         {blocks.map((block) => (
-          <div key={block.id} className="relative w-6 h-6">
+          <div key={String(block.id)} className="relative w-6 h-6">
             <div
               className={`w-full h-full ${statusColors[block.status]} rounded cursor-pointer transition-colors hover:opacity-80`}
-              title={`Block ${block.id}
+              title={`Block ${String(block.id)}
 Status: ${statusLabels[block.status]}
 Offset: ${block.offset !== undefined ? block.offset : 'N/A'}
-Checksum: ${block.checksum !== undefined ? block.checksum : 'N/A'}
+Checksum: ${block.checksum !== undefined ? String(block.checksum) : 'N/A'}
 Size: ${formatSize(blockSize)}`}
             />
           </div>

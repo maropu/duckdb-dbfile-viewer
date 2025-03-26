@@ -12,7 +12,7 @@ export enum BlockStatus {
 }
 
 export interface Block {
-  id: number;
+  id: bigint;
   status: BlockStatus;
   offset?: number;
   checksum?: bigint;
@@ -30,8 +30,16 @@ export interface MainHeader {
 export interface DatabaseHeader {
   checksum: bigint;
   iteration: bigint;
-  metaBlock: bigint;
-  freeList: bigint;
+  metaBlock: {
+    pointer: bigint;
+    blockId: bigint;
+    blockIndex: number;
+  };
+  freeList: {
+    pointer: bigint;
+    blockId: bigint;
+    blockIndex: number;
+  };
   blockCount: bigint;
   blockAllocSize: bigint;
   vectorSize: bigint;
@@ -80,6 +88,32 @@ export function parseMainHeader(buffer: ArrayBuffer): MainHeader {
   };
 }
 
+/**
+ * Extracts the actual block ID from a MetaBlockPointer value by masking out the upper 8 bits
+ * This implements the equivalent of: block_id_t(block_pointer & ~(idx_t(0xFF) << 56ULL))
+ */
+export function getBlockId(blockPointer: bigint): bigint {
+  // Calculate idx_t(0xFF) << 56ULL
+  const mask = BigInt(0xFF) << BigInt(56);
+
+  // Apply NOT (~) to get ~(idx_t(0xFF) << 56ULL)
+  const invertedMask = ~mask;
+
+  // Return block_pointer & invertedMask
+  return blockPointer & invertedMask;
+}
+
+/**
+ * Extracts the block index from the upper 8 bits of a MetaBlockPointer
+ */
+export function getBlockIndex(blockPointer: bigint): number {
+  // Extract the upper 8 bits
+  const mask = BigInt(0xFF) << BigInt(56);
+  const indexBits = blockPointer & mask;
+  // Shift back to get the actual value
+  return Number(indexBits >> BigInt(56));
+}
+
 export function parseDatabaseHeader(buffer: ArrayBuffer, headerOffset: number): DatabaseHeader {
   const view = new DataView(buffer);
   let offset = headerOffset;
@@ -91,10 +125,22 @@ export function parseDatabaseHeader(buffer: ArrayBuffer, headerOffset: number): 
   const iteration = view.getBigUint64(offset, true);
   offset += 8;
 
-  const metaBlock = view.getBigUint64(offset, true);
+  const rawMetaBlock = view.getBigUint64(offset, true);
+  // Store block ID and block index
+  const metaBlock = {
+    pointer: rawMetaBlock,
+    blockId: getBlockId(rawMetaBlock),
+    blockIndex: getBlockIndex(rawMetaBlock)
+  };
   offset += 8;
 
-  const freeList = view.getBigUint64(offset, true);
+  const rawFreeList = view.getBigUint64(offset, true);
+  // Store block ID and block index
+  const freeList = {
+    pointer: rawFreeList,
+    blockId: getBlockId(rawFreeList),
+    blockIndex: getBlockIndex(rawFreeList)
+  };
   offset += 8;
 
   const blockCount = view.getBigUint64(offset, true);
@@ -121,7 +167,7 @@ export function parseDatabaseHeader(buffer: ArrayBuffer, headerOffset: number): 
 }
 
 // Adding constants
-const INVALID_BLOCK = Number("0xFFFFFFFFFFFFFFFF");
+const INVALID_BLOCK = BigInt("2449958197289549827");
 const BLOCK_START = FILE_HEADER_SIZE * 3;
 
 export function analyzeBlocks(buffer: ArrayBuffer, dbHeader1: DatabaseHeader, dbHeader2: DatabaseHeader): Block[] {
@@ -129,32 +175,22 @@ export function analyzeBlocks(buffer: ArrayBuffer, dbHeader1: DatabaseHeader, db
   const blockSize = Number(dbHeader1.iteration > dbHeader2.iteration ? dbHeader1.blockAllocSize : dbHeader2.blockAllocSize);
   const activeHeader = dbHeader1.iteration > dbHeader2.iteration ? dbHeader1 : dbHeader2;
   const totalBlocks = Number(activeHeader.blockCount);
-  const freeBlocks = new Set<number>();
-  const metadataBlocks = new Set<number>();
+  const freeBlocks = new Set<bigint>();
+  const metadataBlocks = new Set<bigint>();
 
   // Calculate the size of a metadata block (block size minus header part)
   const metadataBlockSize = blockSize - 8; // 8 bytes for the pointer to the next block
 
-  // Function to safely convert BigInt to Number
-  const safeToNumber = (bigIntValue: bigint): number => {
-    if (bigIntValue === BigInt("0xFFFFFFFFFFFFFFFF")) {
-      return INVALID_BLOCK;
-    }
-    // Treat values larger than MAX_SAFE_INTEGER as INVALID_BLOCK
-    if (bigIntValue > BigInt(Number.MAX_SAFE_INTEGER)) {
-      console.warn(`Unsafe BigInt conversion: ${bigIntValue} is larger than ${Number.MAX_SAFE_INTEGER}`);
-      return INVALID_BLOCK;
-    }
-    return Number(bigIntValue);
-  };
-
   // Track the freelist chain
-  let currentFreeListBlock = safeToNumber(activeHeader.freeList);
-  let remainingFreeBlocks = 0; // Number of remaining free blocks to read
+  let currentFreeListBlockPointer = activeHeader.freeList.pointer;
+  let currentFreeListBlockId = activeHeader.freeList.blockId;
+  let remainingFreeBlocks = BigInt(0); // Number of remaining free blocks to read
 
-  while (currentFreeListBlock !== INVALID_BLOCK) {
+  while (currentFreeListBlockPointer !== INVALID_BLOCK) {
     try {
-      const blockOffset = BLOCK_START + currentFreeListBlock * blockSize;
+      metadataBlocks.add(currentFreeListBlockId);
+      const blockOffset = BLOCK_START + Number(currentFreeListBlockId) * blockSize;
+
       // Check if not exceeding buffer size
       if (blockOffset < 0 || blockOffset >= buffer.byteLength) {
         console.error(`Invalid block offset: ${blockOffset}, buffer size: ${buffer.byteLength}`);
@@ -163,60 +199,61 @@ export function analyzeBlocks(buffer: ArrayBuffer, dbHeader1: DatabaseHeader, db
       const view = new DataView(buffer, blockOffset);
 
       // Read pointer to the next metablock (first 8 bytes of all metablocks)
-      const nextBlock = safeToNumber(view.getBigUint64(0, true));
+      const nextBlockPointer = view.getBigUint64(0, true);
+      const nextBlockId = getBlockId(nextBlockPointer);
       let offset = 8; // After the next pointer
 
-      if (currentFreeListBlock === safeToNumber(activeHeader.freeList)) {
+      if (currentFreeListBlockId === activeHeader.freeList.blockId) {
         // Only for the first metablock, read the total number of free blocks
-        const freeListCount = Number(view.getBigUint64(offset, true));
-        // Check for invalid values
-        if (freeListCount < 0) {
-          console.error(`Invalid freeListCount: ${freeListCount}`);
-          break;
-        }
+        const freeListCount = view.getBigUint64(offset, true);
         remainingFreeBlocks = freeListCount; // Set the total count
         offset += 8;
       }
 
-      if (remainingFreeBlocks > 0) {
+      if (remainingFreeBlocks > BigInt(0)) {
         // Calculate how many free block IDs can be read from this block
         const maxIdsInBlock = Math.floor((blockSize - offset) / 8);
-        const idsToRead = Math.min(maxIdsInBlock, remainingFreeBlocks);
+        const idsToRead = Number(remainingFreeBlocks < BigInt(maxIdsInBlock) ? remainingFreeBlocks : BigInt(maxIdsInBlock));
 
         // Read free block IDs
         for (let i = 0; i < idsToRead; i++) {
-          const blockId = safeToNumber(view.getBigUint64(offset, true));
-          if (blockId !== INVALID_BLOCK) {
+          const rawBlockId = view.getBigUint64(offset, true);
+          const blockId = getBlockId(rawBlockId);
+          if (blockId !== getBlockId(INVALID_BLOCK)) {
             freeBlocks.add(blockId);
           }
           offset += 8;
         }
-        remainingFreeBlocks -= idsToRead;
+        remainingFreeBlocks -= BigInt(idsToRead);
       }
 
       // Move to the next metablock
-      currentFreeListBlock = nextBlock;
+      currentFreeListBlockPointer = nextBlockPointer;
+      currentFreeListBlockId = nextBlockId;
     } catch (error) {
-      console.error(`Error processing free list block ${currentFreeListBlock}:`, error);
+      console.error(`Error processing free list block ${currentFreeListBlockId}:`, error);
       break;
     }
   }
 
   // Track the metadata block chain
-  let currentMetaBlock = safeToNumber(activeHeader.metaBlock);
-  while (currentMetaBlock !== INVALID_BLOCK) {
+  let currentMetaBlockPointer = activeHeader.metaBlock.pointer;
+  let currentMetaBlockId = activeHeader.metaBlock.blockId;
+  while (currentMetaBlockPointer !== INVALID_BLOCK) {
     try {
-      metadataBlocks.add(currentMetaBlock);
-      const blockOffset = BLOCK_START + currentMetaBlock * blockSize;
+      metadataBlocks.add(currentMetaBlockId);
+      const blockOffset = BLOCK_START + Number(currentMetaBlockId) * blockSize;
       // Check if not exceeding buffer size
       if (blockOffset < 0 || blockOffset >= buffer.byteLength) {
         console.error(`Invalid meta block offset: ${blockOffset}, buffer size: ${buffer.byteLength}`);
         break;
       }
       const view = new DataView(buffer, blockOffset);
-      currentMetaBlock = safeToNumber(view.getBigUint64(0, true));
+      const nextBlockPointer = view.getBigUint64(0, true);
+      currentMetaBlockPointer = nextBlockPointer;
+      currentMetaBlockId = getBlockId(nextBlockPointer);
     } catch (error) {
-      console.error(`Error processing metadata block ${currentMetaBlock}:`, error);
+      console.error(`Error processing metadata block ${currentMetaBlockId}:`, error);
       break;
     }
   }
@@ -224,26 +261,27 @@ export function analyzeBlocks(buffer: ArrayBuffer, dbHeader1: DatabaseHeader, db
   // Set the status of blocks
   for (let i = 0; i < totalBlocks; i++) {
     try {
+      const blockId = BigInt(i);
       const offset = BLOCK_START + i * blockSize;
       // Check if not exceeding buffer size
       if (offset < 0 || offset >= buffer.byteLength) {
         console.error(`Invalid block offset for block ${i}: ${offset}, buffer size: ${buffer.byteLength}`);
-        blocks.push({ id: i, status: BlockStatus.INVALID });
+        blocks.push({ id: blockId, status: BlockStatus.INVALID });
         continue;
       }
       const view = new DataView(buffer, offset);
       const checksum = view.getBigUint64(0, true);
 
-      if (metadataBlocks.has(i)) {
-        blocks.push({ id: i, status: BlockStatus.METADATA, offset, checksum });
-      } else if (freeBlocks.has(i)) {
-        blocks.push({ id: i, status: BlockStatus.FREE, offset, checksum });
+      if (metadataBlocks.has(blockId)) {
+        blocks.push({ id: blockId, status: BlockStatus.METADATA, offset, checksum });
+      } else if (freeBlocks.has(blockId)) {
+        blocks.push({ id: blockId, status: BlockStatus.FREE, offset, checksum });
       } else {
-        blocks.push({ id: i, status: BlockStatus.USED, offset, checksum });
+        blocks.push({ id: blockId, status: BlockStatus.USED, offset, checksum });
       }
     } catch (error) {
       console.error(`Error processing block ${i}:`, error);
-      blocks.push({ id: i, status: BlockStatus.INVALID });
+      blocks.push({ id: BigInt(i), status: BlockStatus.INVALID });
     }
   }
 
