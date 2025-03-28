@@ -38,7 +38,7 @@ describe('DuckDB Parser Tests', () => {
 
     // Mark segments as used and set the next segment pointer properly
     usedSegments.forEach((segmentIndex, arrayIndex) => {
-      const segmentOffset = metaBlockOffset + 8 + segmentIndex * 8;
+      const segmentOffset = metaBlockOffset + segmentIndex * blockSize / META_SEGMENTS_PER_BLOCK;
 
       // Correctly encode the next segment pointer
       // Format: [8 bits = segment index (0-63)] [56 bits = block id]
