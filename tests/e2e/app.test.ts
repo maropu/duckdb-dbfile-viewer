@@ -4,6 +4,24 @@ import * as fs from 'fs';
 
 test.describe('DuckDB Visualizer Tests', () => {
   /**
+   * Helper function to get the path to a test database file in the fixtures directory
+   * @param fileName The name of the database file in the fixtures directory
+   * @returns The absolute path to the database file
+   * @throws Error if the file does not exist
+   */
+  function getTestDbPath(fileName: string): string {
+    const dbPath = path.resolve(__dirname, '../fixtures', fileName);
+
+    // Verify the file exists before returning the path
+    if (!fs.existsSync(dbPath)) {
+      throw new Error(`Test database file not found at ${dbPath}`);
+    }
+
+    console.log(`Using test DB at path: ${dbPath}`);
+    return dbPath;
+  }
+
+  /**
    * Helper function to mock a file upload with specified content
    */
   async function mockFileUpload(page: Page, createFileFn: () => any): Promise<void> {
@@ -48,6 +66,36 @@ test.describe('DuckDB Visualizer Tests', () => {
   }
 
   /**
+   * Helper function to upload a real test database file
+   * @param page The Playwright page object
+   * @param fileName The name of the database file in the fixtures directory
+   */
+  async function uploadTestDatabase(page: Page, fileName: string): Promise<void> {
+    // Navigate to the homepage
+    await page.goto('/');
+
+    // Get the path to the test database file
+    const testDbPath = getTestDbPath(fileName);
+
+    // Upload the file
+    await page.setInputFiles('input[type="file"]', testDbPath);
+  }
+
+  /**
+   * A wrapper function to test file uploads with specific error cases
+   * This handles WebKit skipping and common test patterns
+   */
+  const testFileUploadError = (testName: string, createFileFn: () => any, expectedError: string) => {
+    test(testName, async ({ page, browserName }) => {
+      // Skip on WebKit as it has issues with the file upload simulation
+      test.skip(browserName === 'webkit', 'This test is currently unstable in WebKit');
+
+      await mockFileUpload(page, createFileFn);
+      await expectErrorMessage(page, expectedError);
+    });
+  };
+
+  /**
    * Verifies that an error message containing the specified text is displayed
    */
   async function expectErrorMessage(page: Page, errorText: string): Promise<void> {
@@ -85,23 +133,19 @@ test.describe('DuckDB Visualizer Tests', () => {
     await expect(fileInput).toBeVisible();
   });
 
-  test('displays error message when uploading file that is too small', async ({ page, browserName }) => {
-    // Skip on WebKit as it has issues with the file upload simulation
-    test.skip(browserName === 'webkit', 'This test is currently unstable in WebKit');
-
-    await mockFileUpload(page, () => {
+  // Use the helper function for each error test case
+  testFileUploadError(
+    'displays error message when uploading file that is too small',
+    () => {
       // Create a small file
       return new File(['invalid data'], 'test.db', { type: 'application/octet-stream' });
-    });
+    },
+    'File size is too small'
+  );
 
-    await expectErrorMessage(page, 'File size is too small');
-  });
-
-  test('displays error message when uploading file with invalid magic bytes', async ({ page, browserName }) => {
-    // Skip on WebKit as it has issues with the file upload simulation
-    test.skip(browserName === 'webkit', 'This test is currently unstable in WebKit');
-
-    await mockFileUpload(page, () => {
+  testFileUploadError(
+    'displays error message when uploading file with invalid magic bytes',
+    () => {
       // Create an ArrayBuffer of sufficient size
       const buffer = new ArrayBuffer(4096 * 3);  // Three header blocks
       const view = new DataView(buffer);
@@ -117,16 +161,13 @@ test.describe('DuckDB Visualizer Tests', () => {
       // Convert to a Blob/File
       const blob = new Blob([buffer], { type: 'application/octet-stream' });
       return new File([blob], 'fake.db', { type: 'application/octet-stream' });
-    });
+    },
+    'Invalid DuckDB file format'
+  );
 
-    await expectErrorMessage(page, 'Invalid DuckDB file format');
-  });
-
-  test('displays error message when uploading file with unsupported version', async ({ page, browserName }) => {
-    // Skip on WebKit as it has issues with the file upload simulation
-    test.skip(browserName === 'webkit', 'This test is currently unstable in WebKit');
-
-    await mockFileUpload(page, () => {
+  testFileUploadError(
+    'displays error message when uploading file with unsupported version',
+    () => {
       // Create an ArrayBuffer of sufficient size
       const buffer = new ArrayBuffer(4096 * 3);  // Three header blocks
       const view = new DataView(buffer);
@@ -149,29 +190,16 @@ test.describe('DuckDB Visualizer Tests', () => {
       // Convert to a Blob/File
       const blob = new Blob([buffer], { type: 'application/octet-stream' });
       return new File([blob], 'old_version.db', { type: 'application/octet-stream' });
-    });
-
-    await expectErrorMessage(page, 'Unsupported DuckDB version');
-  });
+    },
+    'Unsupported DuckDB version'
+  );
 
   test('blocks are rendered as squares with real file upload', async ({ page, browserName }) => {
     // Test only in Chromium for now to reduce flakiness
     test.skip(browserName !== 'chromium', 'This test is currently only stable in Chromium');
 
-    // Navigate to the homepage
-    await page.goto('/');
-
-    // Set up the file input element for the real file upload
-    // Use absolute path to the test database file
-    const testDbPath = path.resolve(__dirname, '../../resources/testdb');
-    console.log(`Using test DB at path: ${testDbPath}`);
-
-    // Verify the file exists before attempting to upload
-    if (!fs.existsSync(testDbPath)) {
-      throw new Error(`Test database file not found at ${testDbPath}`);
-    }
-
-    await page.setInputFiles('input[type="file"]', testDbPath);
+    // Use the helper function to upload the test database
+    await uploadTestDatabase(page, 'testdb');
 
     // Wait for the visualization to render - we're targeting the actual content
     // that would appear after successful file processing

@@ -45,4 +45,3 @@ next-env.d.ts
 # etc
 /.vscode
 /.repositories
-/resources
