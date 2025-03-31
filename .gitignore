@@ -12,10 +12,12 @@
 
 # testing
 /coverage
+/playwright-report
+/test-results
 
 # next.js
-/.next/
-/out/
+/.next
+/out
 
 # production
 /build
@@ -41,6 +43,6 @@ yarn-error.log*
 next-env.d.ts
 
 # etc
-.vscode
-.repositories
-resources
+/.vscode
+/.repositories
+/resources
