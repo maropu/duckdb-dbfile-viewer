@@ -133,6 +133,23 @@ test.describe('DuckDB Visualizer Tests', () => {
     await expect(fileInput).toBeVisible();
   });
 
+  test('homepage displays the DuckDB logo', async ({ page }) => {
+    // Navigate to the homepage
+    await page.goto('/');
+
+    // Verify the logo is visible
+    const logo = page.locator('img[alt="DuckDB Viz Logo"]');
+    await expect(logo).toBeVisible();
+
+    // Verify the logo source contains the expected image path
+    // Using contains instead of exact match because Next.js modifies the src for optimization
+    const logoSrc = await logo.getAttribute('src');
+    expect(logoSrc).toContain('duckdb-viz.png');
+
+    // Verify the logo is rendered with appropriate CSS class
+    await expect(logo).toHaveClass(/mr-[0-9]+/);
+  });
+
   // Use the helper function for each error test case
   testFileUploadError(
     'displays error message when uploading file that is too small',
