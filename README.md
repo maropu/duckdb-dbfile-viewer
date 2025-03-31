@@ -25,6 +25,8 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+> **Note:** This tool supports DuckDB version v1.2.0 and above.
+
 # Any Question?
 
 If you have any question, please feel free to leave it on [Issues](https://github.com/maropu/duckdb-dbfile-viz/issues)
