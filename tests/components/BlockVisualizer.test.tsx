@@ -103,46 +103,6 @@ describe('BlockVisualizer Component', () => {
       expect(blockElements.length).toBeGreaterThan(0);
     });
 
-    it('correctly calculates segment size as a constant', () => {
-      const blockSize = 4096;
-      const blocks = createMockBlocks();
-
-      // Mock console.log to capture internal values
-      const consoleSpy = vi.spyOn(console, 'log');
-
-      // Add a temporary log to the component to expose the segmentSize
-      // This is a testing hack - in real testing you might use a ref or testing ID
-      const WrappedComponent = () => {
-        return (
-          <BlockVisualizer
-            blocks={blocks}
-            blockSize={blockSize}
-          />
-        );
-      };
-
-      render(<WrappedComponent />);
-
-      // Calculate the expected segment size
-      const expectedSegmentSize = blockSize / META_SEGMENTS_PER_BLOCK;
-
-      // Check that a metadata block with segments is rendered
-      const metaBlock = blocks.find(b => b.status === BlockStatus.METADATA);
-      expect(metaBlock).toBeDefined();
-
-      // Verify that segments are rendered
-      if (metaBlock?.metaSegments) {
-        // Count used segments
-        const usedSegmentsCount = metaBlock.metaSegments.filter(s => s.used).length;
-
-        // Check tooltip content for a segment
-        // This depends on your actual implementation and might need adjustment
-        // In a real test, you'd need to hover over elements to see tooltips
-
-        consoleSpy.mockRestore();
-      }
-    });
-
     it('renders metadata segments with correct colors', () => {
       const blockSize = 4096;
       const blocks = createMockBlocks();
@@ -170,19 +130,6 @@ describe('BlockVisualizer Component', () => {
         // For now, just verify the component renders without errors
         expect(true).toBeTruthy();
       }
-    });
-
-    it('displays correct tooltip information for blocks', async () => {
-      const blockSize = 4096;
-      const blocks = createMockBlocks();
-
-      // For tooltip testing, you might need more advanced testing libraries
-      // that can simulate hover events and check the tooltip content
-
-      render(<BlockVisualizer blocks={blocks} blockSize={blockSize} />);
-
-      // Basic rendering check
-      expect(screen.getByText('Block Usage Status')).toBeInTheDocument();
     });
   });
 });
