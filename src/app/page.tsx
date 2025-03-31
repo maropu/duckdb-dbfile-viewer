@@ -13,6 +13,38 @@ interface FileAnalysis {
   activeHeader: DatabaseHeader;
 }
 
+/**
+ * Checks if the provided version string is at least v1.2.0
+ * Handles version strings like 'v1.2.0' and 'v1.2.18e52ec4395'
+ */
+function isVersionSupported(versionStr: string): boolean {
+  // If empty or not starting with 'v', reject
+  if (!versionStr || !versionStr.startsWith('v')) {
+    return false;
+  }
+
+  try {
+    // Extract version numbers, ignoring commit hash if present
+    const versionMatch = versionStr.match(/^v(\d+)\.(\d+)\.(\d+)/);
+    if (!versionMatch) {
+      return false;
+    }
+
+    const major = parseInt(versionMatch[1], 10);
+    const minor = parseInt(versionMatch[2], 10);
+    const patch = parseInt(versionMatch[3], 10);
+
+    // v1.2.0 or higher
+    if (major > 1) return true;
+    if (major === 1 && minor > 2) return true;
+    if (major === 1 && minor === 2 && patch >= 0) return true;
+
+    return false;
+  } catch (e) {
+    return false;
+  }
+}
+
 export default function Home() {
   const [fileAnalysis, setFileAnalysis] = useState<FileAnalysis | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -23,11 +55,26 @@ export default function Home() {
 
     try {
       const buffer = await file.arrayBuffer();
+
+      // Basic file size check
       if (buffer.byteLength < FILE_HEADER_SIZE * 3) {
-        throw new Error('File size is too small');
+        throw new Error('File size is too small for a valid DuckDB file');
       }
 
+      // Parse main header for initial validation
       const mainHeader = parseMainHeader(buffer);
+
+      // Verify magic bytes and version
+      if (mainHeader.magic !== 'DUCK') {
+        throw new Error('Invalid DuckDB file format: DUCK magic bytes not found');
+      }
+
+      // Check library version
+      if (!isVersionSupported(mainHeader.libraryVersion)) {
+        throw new Error(`Unsupported DuckDB version: ${mainHeader.libraryVersion}. This tool supports v1.2.0 and later.`);
+      }
+
+      // Now parse the rest of the file
       const dbHeader1 = parseDatabaseHeader(buffer, FILE_HEADER_SIZE);
       const dbHeader2 = parseDatabaseHeader(buffer, FILE_HEADER_SIZE * 2);
       const blocks = analyzeBlocks(buffer, dbHeader1, dbHeader2);
