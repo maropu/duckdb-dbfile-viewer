@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { MainHeader, DatabaseHeader, FILE_HEADER_SIZE, parseMainHeader, parseDatabaseHeader, analyzeBlocks, Block } from './utils/duckdb-parser';
 import BlockVisualizer from './components/BlockVisualizer';
 
@@ -122,7 +123,16 @@ export default function Home() {
   return (
     <main className="min-h-screen p-8">
       <div className="max-w-6xl mx-auto">
-        <h1 className="text-3xl font-bold mb-8">DuckDB Database File Viewer</h1>
+        <div className="flex items-center mb-8">
+          <Image
+            src="/duckdb-viz.png"
+            alt="DuckDB Viz Logo"
+            width={80}
+            height={80}
+            className="mr-6"
+          />
+          <h1 className="text-4xl font-bold">DuckDB Database File Viewer</h1>
+        </div>
 
         <div className="mb-8">
           <label className="block text-sm font-medium mb-2">

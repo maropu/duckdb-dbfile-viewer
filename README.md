@@ -1,4 +1,7 @@
-# DuckDB DBFile Visualizer
+<h1 align="center">
+  <img src="resources/duckdb-viz.png" alt="DuckDB DBFile Visualizer Logo" width="60" style="vertical-align: middle; margin-right: 10px;" />
+  DuckDB DBFile Visualizer
+</h1>
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
 [![Build and test](https://github.com/maropu/duckdb-dbfile-viz/actions/workflows/build_and_tests.yml/badge.svg)](https://github.com/maropu/duckdb-dbfile-viz/actions/workflows/build_and_tests.yml)
