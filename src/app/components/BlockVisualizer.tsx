@@ -64,7 +64,14 @@ export default function BlockVisualizer({ blocks, blockSize }: BlockVisualizerPr
       {/* Main Block Grid */}
       <div className="mb-8">
         <h3 className="text-lg font-medium mb-2">File Blocks</h3>
-        <div className="grid grid-cols-16 gap-1 bg-gray-100 p-4 rounded-lg" style={{ gridAutoFlow: 'dense' }}>
+        <div
+          className="grid gap-1 bg-gray-100 p-4 rounded-lg"
+          style={{
+            gridTemplateColumns: 'repeat(16, minmax(0, 1fr))',
+            gridAutoRows: '1fr',
+            gridAutoFlow: 'dense'
+          }}
+        >
           {blocks.map((block) => {
             // Check if this is a metadata block with segments
             const isMetaBlock = block.status === BlockStatus.METADATA && block.metaSegments;
@@ -85,32 +92,35 @@ export default function BlockVisualizer({ blocks, blockSize }: BlockVisualizerPr
             return (
               <div
                 key={`block-${String(block.id)}`}
-                className="relative"
+                className="relative aspect-square"
                 style={{
-                  ...gridStyles,
-                  width: '100%',
-                  height: '100%',
-                  minHeight: '32px',
-                  minWidth: '32px'
+                  ...gridStyles
                 }}
               >
                 {isMetaBlock ? (
                   // Render 8x8 grid of meta segments for metadata blocks
-                  <div className="grid grid-cols-8 gap-0 w-full h-full overflow-hidden">
-                    {block.metaSegments?.map((segment) => (
-                      <div
-                        key={`segment-${String(block.id)}-${segment.index}`}
-                        className="relative"
-                      >
+                  <div
+                    className="grid w-full h-full"
+                    style={{
+                      gridTemplateColumns: 'repeat(8, 1fr)',
+                      gridTemplateRows: 'repeat(8, 1fr)',
+                    }}
+                  >
+                    {block.metaSegments?.map((segment) => {
+                      const segmentColor = segment.used ?
+                        statusColors[BlockStatus.META_SEGMENT_USED] :
+                        statusColors[BlockStatus.META_SEGMENT_FREE];
+
+                      return (
                         <div
-                          className={`w-full h-full ${segment.used ? statusColors[BlockStatus.META_SEGMENT_USED] : statusColors[BlockStatus.META_SEGMENT_FREE]} cursor-pointer transition-colors hover:opacity-80`}
+                          key={`segment-${String(block.id)}-${segment.index}`}
+                          className={`${segmentColor} cursor-pointer transition-colors hover:opacity-80`}
                           title={`Block ${String(block.id)} - Segment ${segment.index}
 Status: ${segment.used ? 'Used' : 'Free'}
 Offset: ${block.offset !== undefined ? block.offset + segmentSize * segment.index : 'N/A'}`}
-                          style={{ minHeight: '4px', minWidth: '4px' }}
                         />
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   // Render regular block
@@ -128,6 +138,13 @@ Size: ${formatSize(blockSize)}`}
           })}
         </div>
       </div>
+
+      {/* Define CSS styles directly */}
+      <style jsx>{`
+        .aspect-square {
+          aspect-ratio: 1 / 1;
+        }
+      `}</style>
     </div>
   );
 }
