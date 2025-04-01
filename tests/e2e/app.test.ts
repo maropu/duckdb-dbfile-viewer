@@ -211,6 +211,39 @@ test.describe('DuckDB Visualizer Tests', () => {
     'Unsupported DuckDB version'
   );
 
+  // Test for file size exceeding the maximum limit
+  testFileUploadError(
+    'displays error message when uploading file exceeding the maximum size limit',
+    () => {
+      // Create a mock file that reports a size larger than 512MB
+      // Note: We don't actually create a 512MB+ file for testing efficiency
+      // Instead, we override the size property of the File object
+      const smallBuffer = new ArrayBuffer(4096 * 3);  // Small buffer for actual content
+      const view = new DataView(smallBuffer);
+
+      // Set first 8 bytes to a checksum value
+      view.setBigUint64(0, BigInt(12345), true);
+
+      // Set next 4 bytes to 'DUCK'
+      const textEncoder = new TextEncoder();
+      const magicBytes = textEncoder.encode('DUCK');
+      new Uint8Array(smallBuffer, 8, 4).set(magicBytes);
+
+      // Create a file with the small buffer
+      const file = new File([smallBuffer], 'too_large.db', { type: 'application/octet-stream' });
+
+      // Override the size property to simulate a large file
+      // 513MB in bytes
+      Object.defineProperty(file, 'size', {
+        value: 513 * 1024 * 1024,
+        writable: false
+      });
+
+      return file;
+    },
+    'File size exceeds the maximum limit of 512MB'
+  );
+
   test('blocks are rendered as squares with real file upload', async ({ page, browserName }) => {
     // Test only in Chromium for now to reduce flakiness
     test.skip(browserName !== 'chromium', 'This test is currently only stable in Chromium');

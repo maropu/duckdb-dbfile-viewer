@@ -5,6 +5,9 @@ import Image from 'next/image';
 import { MainHeader, DatabaseHeader, FILE_HEADER_SIZE, parseMainHeader, parseDatabaseHeader, analyzeBlocks, Block } from './utils/duckdb-parser';
 import BlockVisualizer from './components/BlockVisualizer';
 
+// Maximum file size limit (512MB)
+export const MAX_FILE_SIZE = 512 * 1024 * 1024;
+
 interface FileAnalysis {
   mainHeader: MainHeader;
   dbHeader1: DatabaseHeader;
@@ -55,6 +58,11 @@ export default function Home() {
     if (!file) return;
 
     try {
+      // Check if file size exceeds the maximum limit
+      if (file.size > MAX_FILE_SIZE) {
+        throw new Error(`File size exceeds the maximum limit of 512MB`);
+      }
+
       const buffer = await file.arrayBuffer();
 
       // Basic file size check
