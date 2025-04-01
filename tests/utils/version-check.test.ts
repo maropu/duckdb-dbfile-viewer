@@ -1,34 +1,8 @@
 import { describe, it, expect } from 'vitest';
+import { isVersionSupported } from '../../src/app/page';
 
 // Import the function from src/app/page.tsx
-// For testing purposes, we'll recreate the function here
-function isVersionSupported(versionStr: string): boolean {
-  // If empty or not starting with 'v', reject
-  if (!versionStr || !versionStr.startsWith('v')) {
-    return false;
-  }
-
-  try {
-    // Extract version numbers, ignoring commit hash if present
-    const versionMatch = versionStr.match(/^v(\d+)\.(\d+)\.(\d+)/);
-    if (!versionMatch) {
-      return false;
-    }
-
-    const major = parseInt(versionMatch[1], 10);
-    const minor = parseInt(versionMatch[2], 10);
-    const patch = parseInt(versionMatch[3], 10);
-
-    // v1.2.0 or higher
-    if (major > 1) return true;
-    if (major === 1 && minor > 2) return true;
-    if (major === 1 && minor === 2 && patch >= 0) return true;
-
-    return false;
-  } catch (e) {
-    return false;
-  }
-}
+// No need to recreate the function here anymore
 
 describe('isVersionSupported', () => {
   it('should return false for empty or invalid input', () => {

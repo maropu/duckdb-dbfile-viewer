@@ -21,7 +21,7 @@ interface FileAnalysis {
  * Checks if the provided version string is at least v1.2.0
  * Handles version strings like 'v1.2.0' and 'v1.2.18e52ec4395'
  */
-function isVersionSupported(versionStr: string): boolean {
+export function isVersionSupported(versionStr: string): boolean {
   // If empty or not starting with 'v', reject
   if (!versionStr || !versionStr.startsWith('v')) {
     return false;
