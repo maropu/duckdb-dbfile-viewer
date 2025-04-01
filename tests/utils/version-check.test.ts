@@ -1,8 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { isVersionSupported } from '../../src/app/page';
+import { isVersionSupported } from '../../src/app/utils/version-utils';
 
-// Import the function from src/app/page.tsx
-// No need to recreate the function here anymore
+// Import the function from the utility file
 
 describe('isVersionSupported', () => {
   it('should return false for empty or invalid input', () => {
