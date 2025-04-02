@@ -23,11 +23,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${inter.variable} ${robotoMono.variable}`}>
       <body
-        className={`${inter.variable} ${robotoMono.variable} antialiased`}
+        className="antialiased min-h-screen bg-[var(--background)] text-[var(--foreground)]"
       >
-        {children}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          {children}
+        </div>
       </body>
     </html>
   );

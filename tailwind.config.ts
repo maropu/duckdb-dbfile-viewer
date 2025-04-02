@@ -14,5 +14,16 @@ const config: Config = {
     },
   },
   plugins: [],
+  // Next.js 15の使用でより確実に動作させるために
+  // これらの設定を追加
+  future: {
+    hoverOnlyWhenSupported: true,
+  },
+  // React 19に特化した設定
+  // デフォルトのTailwindスタイルを明示的に適用
+  corePlugins: {
+    preflight: true,
+  },
 }
+
 export default config
