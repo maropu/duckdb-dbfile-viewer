@@ -1,4 +1,4 @@
-# <img src="public/duckdb-viz.png" alt="DuckDB Database File Viewer Logo" width="80" align="center" /> DuckDB Database File Viewer
+# <img src="public/duckdb-dbfile-viewer.png" alt="DuckDB Database File Viewer Logo" width="80" align="center" /> DuckDB Database File Viewer
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
 [![Build and test](https://github.com/maropu/duckdb-dbfile-viz/actions/workflows/build_and_tests.yml/badge.svg)](https://github.com/maropu/duckdb-dbfile-viz/actions/workflows/build_and_tests.yml)

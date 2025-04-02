@@ -144,7 +144,7 @@ test.describe('DuckDB Visualizer Tests', () => {
     // Verify the logo source contains the expected image path
     // Using contains instead of exact match because Next.js modifies the src for optimization
     const logoSrc = await logo.getAttribute('src');
-    expect(logoSrc).toContain('duckdb-viz.png');
+    expect(logoSrc).toContain('duckdb-dbfile-viewer.png');
 
     // Verify the logo is rendered with appropriate CSS class
     await expect(logo).toHaveClass(/mr-[0-9]+/);
