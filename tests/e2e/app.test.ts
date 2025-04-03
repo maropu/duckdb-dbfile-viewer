@@ -249,7 +249,7 @@ test.describe('DuckDB Visualizer Tests', () => {
     test.skip(browserName !== 'chromium', 'This test is currently only stable in Chromium');
 
     // Use the helper function to upload the test database
-    await uploadTestDatabase(page, 'testdb');
+    await uploadTestDatabase(page, 'testdb-1');
 
     // Wait for the visualization to render - we're targeting the actual content
     // that would appear after successful file processing
