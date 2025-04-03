@@ -179,6 +179,11 @@ const BLOCK_START = FILE_HEADER_SIZE * 3;
 export const META_SEGMENTS_PER_BLOCK = 64; // Each metablock is divided into 64 segments
 
 export function analyzeBlocks(buffer: ArrayBuffer, dbHeader1: DatabaseHeader, dbHeader2: DatabaseHeader): Block[] {
+  // Define alignValueFloor as a closure inside analyzeBlocks
+  const alignValueFloor = (n: number, val = 8) => {
+    return Math.floor(n / val) * val;
+  };
+
   const blocks: Block[] = [];
   const blockSize = Number(dbHeader1.iteration > dbHeader2.iteration ? dbHeader1.blockAllocSize : dbHeader2.blockAllocSize);
   const activeHeader = dbHeader1.iteration > dbHeader2.iteration ? dbHeader1 : dbHeader2;
@@ -186,73 +191,45 @@ export function analyzeBlocks(buffer: ArrayBuffer, dbHeader1: DatabaseHeader, db
   const freeBlocks = new Set<bigint>();
 
   // Calculate segment size as a constant
-  const segmentSize = blockSize / META_SEGMENTS_PER_BLOCK;
+  const blockHeaderSize = 8;
+  const segmentSize = alignValueFloor((blockSize - blockHeaderSize) / META_SEGMENTS_PER_BLOCK);
 
   // Track used indexes within each metablock
   const metaBlockUsedIndexes = new Map<string, Set<number>>();
 
-  // Track the freelist chain
-  let currentFreeListBlockPointer = activeHeader.freeList.pointer;
-  let currentFreeListBlockId = activeHeader.freeList.blockId;
-  let currentFreeListBlockIndex = activeHeader.freeList.blockIndex;
-  let remainingFreeBlocks = BigInt(0); // Number of remaining free blocks to read
+  // Parse a free list in a metadata block
+  if (activeHeader.freeList.pointer !== INVALID_BLOCK) {
+    // Track the freelist chain
+    let freeListBlockId = activeHeader.freeList.blockId;
+    let freeListBlockIndex = activeHeader.freeList.blockIndex;
 
-  while (currentFreeListBlockPointer !== INVALID_BLOCK) {
-    try {
-      // Add freelist index to used indexes
-      const blockKey = currentFreeListBlockId.toString();
-      if (!metaBlockUsedIndexes.has(blockKey)) {
-        metaBlockUsedIndexes.set(blockKey, new Set<number>());
-      }
-      metaBlockUsedIndexes.get(blockKey)!.add(currentFreeListBlockIndex);
+    // Add freelist index to used indexes
+    const blockKey = freeListBlockId.toString();
+    if (!metaBlockUsedIndexes.has(blockKey)) {
+      metaBlockUsedIndexes.set(blockKey, new Set<number>());
+    }
+    metaBlockUsedIndexes.get(blockKey)!.add(freeListBlockIndex);
 
-      const blockOffset = BLOCK_START + Number(currentFreeListBlockId) * blockSize +
-                         (currentFreeListBlockIndex * segmentSize);
+    const blockOffset = BLOCK_START + Number(freeListBlockId) * blockSize + blockHeaderSize +
+                       (freeListBlockIndex * segmentSize);
 
-      // Check if not exceeding buffer size
-      if (blockOffset < 0 || blockOffset >= buffer.byteLength) {
-        console.error(`Invalid block offset: ${blockOffset}, buffer size: ${buffer.byteLength}`);
-        break;
-      }
-      const view = new DataView(buffer, blockOffset);
+    // Check if not exceeding buffer size
+    if (blockOffset < 0 || blockOffset >= buffer.byteLength) {
+      throw new Error(`Invalid meta block for free list: blockId=${freeListBlockId}, blockIndex=${freeListBlockIndex}`);
+    }
 
-      // Read pointer to the next metablock (first 8 bytes of all metablocks)
-      const nextBlockPointer = view.getBigUint64(0, true);
-      const nextBlockId = getBlockId(nextBlockPointer);
-      const nextBlockIndex = getBlockIndex(nextBlockPointer);
-      let offset = 8; // After the next pointer
+    // Read the total number of free blocks in the first metadata block
+    const view = new DataView(buffer, blockOffset);
+    const freeListCount = view.getBigUint64(8, true);
+    console.log(`Free list count: ${freeListCount}`);
+    if (freeListCount > BigInt(Math.floor(segmentSize / 8) - 2)) {
+      throw new Error(`Free list count is too large: count=${freeListCount}`);
+    }
 
-      if (currentFreeListBlockId === activeHeader.freeList.blockId) {
-        // Only for the first metablock, read the total number of free blocks
-        const freeListCount = view.getBigUint64(offset, true);
-        remainingFreeBlocks = freeListCount; // Set the total count
-        offset += 8;
-      }
-
-      if (remainingFreeBlocks > BigInt(0)) {
-        // Calculate how many free block IDs can be read from this block
-        const maxIdsInBlock = Math.floor((segmentSize - offset) / 8);
-        const idsToRead = Number(remainingFreeBlocks < BigInt(maxIdsInBlock) ? remainingFreeBlocks : BigInt(maxIdsInBlock));
-
-        // Read free block IDs
-        for (let i = 0; i < idsToRead; i++) {
-          const rawBlockId = view.getBigUint64(offset, true);
-          const blockId = getBlockId(rawBlockId);
-          if (blockId !== getBlockId(INVALID_BLOCK)) {
-            freeBlocks.add(blockId);
-          }
-          offset += 8;
-        }
-        remainingFreeBlocks -= BigInt(idsToRead);
-      }
-
-      // Move to the next metablock
-      currentFreeListBlockPointer = nextBlockPointer;
-      currentFreeListBlockId = nextBlockId;
-      currentFreeListBlockIndex = nextBlockIndex;
-    } catch (error) {
-      console.error(`Error processing free list block ${currentFreeListBlockId}:`, error);
-      break;
+    // Read free block IDs
+    for (let i = 0; i < freeListCount; i++) {
+      const blockId = view.getBigUint64(16 + i * 8, true);
+      freeBlocks.add(blockId);
     }
   }
 
@@ -269,12 +246,11 @@ export function analyzeBlocks(buffer: ArrayBuffer, dbHeader1: DatabaseHeader, db
       }
       metaBlockUsedIndexes.get(blockKey)!.add(currentMetaBlockIndex);
 
-      const blockOffset = BLOCK_START + Number(currentMetaBlockId) * blockSize +
+      const blockOffset = BLOCK_START + Number(currentMetaBlockId) * blockSize + blockHeaderSize +
                          (currentMetaBlockIndex * segmentSize);
       // Check if not exceeding buffer size
       if (blockOffset < 0 || blockOffset >= buffer.byteLength) {
-        console.error(`Invalid meta block offset: ${blockOffset}, buffer size: ${buffer.byteLength}`);
-        break;
+        throw new Error(`Invalid meta block offset: ${blockOffset}, buffer size: ${buffer.byteLength}`);
       }
       const view = new DataView(buffer, blockOffset);
       const nextBlockPointer = view.getBigUint64(0, true);

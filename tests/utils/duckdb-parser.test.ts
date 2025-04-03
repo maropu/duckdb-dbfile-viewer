@@ -18,8 +18,14 @@ describe('DuckDB Parser Tests', () => {
 
   // Create a more realistic test buffer
   const setupTestBuffer = () => {
+    // Define alignValueFloor as a closure inside analyzeBlocks
+    const alignValueFloor = (n: number, val = 8) => {
+      return Math.floor(n / val) * val;
+    };
+
     // Create a buffer large enough for a few blocks
     const blockSize = 4096;
+    const blockHeaderSize = 8;
     const numBlocks = 8; // Increase buffer size
     const buffer = new ArrayBuffer(BLOCK_START + blockSize * numBlocks);
     const view = new DataView(buffer);
@@ -29,16 +35,18 @@ describe('DuckDB Parser Tests', () => {
       view.setBigUint64(i, BigInt(0), true);
     }
 
+    const segmentSize = alignValueFloor((blockSize - blockHeaderSize) / META_SEGMENTS_PER_BLOCK);
+
     // Set up a metadata block at position 1
     const metaBlockId = 1;
-    const metaBlockOffset = BLOCK_START + blockSize * metaBlockId;
+    const metaBlockOffset = BLOCK_START + blockSize * metaBlockId + blockHeaderSize;
 
     // Set up a few used segments in the metadata block
     const usedSegments = [0, 2, 5, 10, 20, 30, 40, 63]; // Example segments that are used
 
     // Mark segments as used and set the next segment pointer properly
     usedSegments.forEach((segmentIndex, arrayIndex) => {
-      const segmentOffset = metaBlockOffset + segmentIndex * blockSize / META_SEGMENTS_PER_BLOCK;
+      const segmentOffset = metaBlockOffset + segmentIndex * segmentSize;
 
       // Correctly encode the next segment pointer
       // Format: [8 bits = segment index (0-63)] [56 bits = block id]
