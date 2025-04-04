@@ -1,7 +1,7 @@
 # <img src="public/duckdb-dbfile-viewer-logo.png" alt="DuckDB Database File Viewer Logo" width="80" align="center" /> DuckDB Database File Viewer
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
-[![Build and test](https://github.com/maropu/duckdb-dbfile-viz/actions/workflows/build_and_tests.yml/badge.svg)](https://github.com/maropu/duckdb-dbfile-viz/actions/workflows/build_and_tests.yml)
+[![Build and test](https://github.com/maropu/duckdb-dbfile-viewer/actions/workflows/build_and_tests.yml/badge.svg)](https://github.com/maropu/duckdb-dbfile-viewer/actions/workflows/build_and_tests.yml)
 
 The DuckDB Database File Viewer is a tool for visualizing the internal structure of a DuckDB database file. This project parses the DuckDB file format and interactively displays the block structure and metadata segment usage.
 
@@ -30,5 +30,5 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 # Any Question?
 
-If you have any question, please feel free to leave it on [Issues](https://github.com/maropu/duckdb-dbfile-viz/issues)
+If you have any question, please feel free to leave it on [Issues](https://github.com/maropu/duckdb-dbfile-viewer/issues)
 or Twitter ([@maropu](http://twitter.com/#!/maropu)).

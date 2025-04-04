@@ -138,7 +138,7 @@ test.describe('DuckDB Visualizer Tests', () => {
     await page.goto('/');
 
     // Verify the logo is visible
-    const logo = page.locator('img[alt="DuckDB Viz Logo"]');
+    const logo = page.locator('img[alt="DuckDB DB File Viewer Logo"]');
     await expect(logo).toBeVisible();
 
     // Verify the logo source contains the expected image path

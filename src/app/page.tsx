@@ -101,7 +101,7 @@ export default function Home() {
         <div className="flex items-center mb-8">
           <Image
             src="/duckdb-dbfile-viewer-logo.png"
-            alt="DuckDB Viz Logo"
+            alt="DuckDB DB File Viewer Logo"
             width={80}
             height={80}
             className="mr-6"

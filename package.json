@@ -1,5 +1,5 @@
 {
-  "name": "duckdb-dbfile-viz",
+  "name": "duckdb-dbfile-viewer",
   "version": "0.1.0",
   "private": true,
   "license": "MIT",
