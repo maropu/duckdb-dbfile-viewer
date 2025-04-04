@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { analyzeBlocks, META_SEGMENTS_PER_BLOCK, BlockStatus } from '../../src/app/utils/duckdb-parser';
+import { analyzeBlocks, META_SEGMENTS_PER_BLOCK, BlockStatus, parseMainHeader, parseDatabaseHeader } from '../../src/app/utils/duckdb-parser';
 import { DatabaseHeader } from '../../src/app/utils/duckdb-parser';
+import fs from 'fs';
+import path from 'path';
 
 describe('DuckDB Parser Tests', () => {
   // Constants for testing
@@ -105,7 +107,7 @@ describe('DuckDB Parser Tests', () => {
     };
   };
 
-  describe('DuckDB Parser Tests', () => {
+  describe('In-Memory Tests', () => {
     it('should identify metadata blocks correctly', () => {
       const { buffer, usedSegments, metaBlockId, dataBlockIds } = setupTestBuffer();
       const mockHeader = createMockHeader(BigInt(metaBlockId), BigInt(-1));
@@ -152,5 +154,83 @@ describe('DuckDB Parser Tests', () => {
         });
       }
     }, 2000); // 2 second timeout
+  });
+
+  describe('Real DuckDB Files Tests', () => {
+    const loadDbFile = (filename: string): ArrayBuffer => {
+      const filePath = path.resolve(__dirname, '../fixtures', filename);
+      const fileData = fs.readFileSync(filePath);
+      // Use explicit type assertion to ensure it's treated as ArrayBuffer
+      return fileData.buffer.slice(fileData.byteOffset, fileData.byteOffset + fileData.byteLength) as ArrayBuffer;
+    };
+
+    // Updated test function to remove redundant libraryVersionPattern parameter
+    const testDuckDBFile = (
+      version: string,
+      totalBlocks: number,
+      metadataBlocks: number,
+      usedBlocks: number,
+      freeBlocks: number
+    ) => {
+      it(`should correctly parse blocks in DuckDB ${version} database file`, () => {
+        const filename = `testdb_t5_r200_${version}.db`;
+        const buffer = loadDbFile(filename);
+
+        // Parse headers
+        const mainHeader = parseMainHeader(buffer);
+        const dbHeader1 = parseDatabaseHeader(buffer, FILE_HEADER_SIZE);
+        const dbHeader2 = parseDatabaseHeader(buffer, FILE_HEADER_SIZE * 2);
+
+        // Get active header (the one with higher iteration)
+        const activeHeader = dbHeader1.iteration > dbHeader2.iteration ? dbHeader1 : dbHeader2;
+
+        // Analyze blocks
+        const blocks = analyzeBlocks(buffer, dbHeader1, dbHeader2);
+
+        // Test total block count
+        expect(blocks.length).toBe(totalBlocks);
+
+        // Verify that the metablock from the header is identified correctly
+        const metaBlockId = activeHeader.metaBlock.blockId;
+        const metaBlock = blocks.find(block => block.id === metaBlockId && block.status === BlockStatus.METADATA);
+        expect(metaBlock).toBeDefined();
+
+        // Count blocks by status
+        const metadataBlocksFound = blocks.filter(b => b.status === BlockStatus.METADATA);
+        const usedBlocksFound = blocks.filter(b => b.status === BlockStatus.USED);
+        const freeBlocksFound = blocks.filter(b => b.status === BlockStatus.FREE);
+
+        // Test block counts by status - using specific numeric values
+        expect(metadataBlocksFound.length).toBe(metadataBlocks);
+        expect(usedBlocksFound.length).toBe(usedBlocks);
+        expect(freeBlocksFound.length).toBe(freeBlocks);
+
+        // Check that we have metadata segments
+        expect(metaBlock?.metaSegments).toBeDefined();
+        expect(metaBlock?.metaSegments?.length).toBe(META_SEGMENTS_PER_BLOCK);
+
+        // Check if we have some used metadata segments
+        if (metaBlock && metaBlock.metaSegments) {
+          const usedSegments = metaBlock.metaSegments.filter(segment => segment.used);
+          expect(usedSegments.length).toBeGreaterThan(0);
+        }
+
+        // Generate library version pattern from version and validate
+        const libraryVersionPattern = new RegExp(`^v${version}`);
+        expect(mainHeader.libraryVersion).toMatch(libraryVersionPattern);
+
+        // Log some info about the database file
+        console.log(`DuckDB ${version} - Library version: ${mainHeader.libraryVersion}`);
+        console.log(`DuckDB ${version} - Block count: ${activeHeader.blockCount}`);
+        console.log(`DuckDB ${version} - Total blocks parsed: ${blocks.length}`);
+        console.log(`DuckDB ${version} - Metadata blocks: ${metadataBlocksFound.length}`);
+        console.log(`DuckDB ${version} - Used blocks: ${usedBlocksFound.length}`);
+        console.log(`DuckDB ${version} - Free blocks: ${freeBlocksFound.length}`);
+      }, 5000); // 5 second timeout for file operations
+    };
+
+    // Specify expected values for each version without redundancy
+    testDuckDBFile('1.2.0', 7, 1, 6, 0);
+    testDuckDBFile('1.2.1', 7, 1, 6, 0);
   });
 });
