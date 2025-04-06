@@ -1,26 +1,52 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import Image from 'next/image';
 import { MainHeader, DatabaseHeader, FILE_HEADER_SIZE, parseMainHeader, parseDatabaseHeader, analyzeBlocks, Block } from './utils/duckdb-parser';
 import { isVersionSupported } from './utils/version-utils';
 import { MAX_FILE_SIZE } from './utils/file-utils';
 import BlockVisualizer from './components/BlockVisualizer';
 
+/**
+ * Interface representing the analysis result of a DuckDB database file
+ */
 interface FileAnalysis {
+  /** Main header containing file format information */
   mainHeader: MainHeader;
+  /** First database header */
   dbHeader1: DatabaseHeader;
+  /** Second database header */
   dbHeader2: DatabaseHeader;
+  /** Array of parsed blocks with their metadata */
   blocks: Block[];
+  /** Size of each block in bytes */
   blockSize: number;
+  /** Reference to the active database header (the one with higher iteration) */
   activeHeader: DatabaseHeader;
 }
 
-export default function Home() {
+/**
+ * Types of values that can be displayed in the file analysis UI
+ */
+type DisplayValue = string | number | bigint | boolean | null | undefined | Array<any> | { blockId: bigint; blockIndex: number } | Record<string, any>;
+
+/**
+ * Home page component for the DuckDB Database File Viewer
+ *
+ * @returns React component for the main application page
+ */
+export default function Home(): React.ReactElement {
+  // State for storing the analysis results of the uploaded file
   const [fileAnalysis, setFileAnalysis] = useState<FileAnalysis | null>(null);
+  // State for storing error messages
   const [error, setError] = useState<string | null>(null);
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  /**
+   * Handles file upload and processes the DuckDB database file
+   *
+   * @param event - The change event from the file input
+   */
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -65,23 +91,43 @@ export default function Home() {
     }
   };
 
-  const renderValue = (value: any) => {
-    if (Array.isArray(value)) {
-      return value.map(v => v.toString()).join(', ');
+  /**
+   * Renders a value from the file analysis in a human-readable format
+   *
+   * @param value - The value to render
+   * @returns A string representation of the value
+   */
+  const renderValue = (value: DisplayValue): string => {
+    if (value === null || value === undefined) {
+      return 'N/A';
     }
+
+    if (Array.isArray(value)) {
+      return value.map(v => String(v)).join(', ');
+    }
+
     if (typeof value === 'bigint' && value === BigInt("2449958197289549827")) {
       return '<invalid>';
     }
+
     if (typeof value === 'object' && value !== null) {
       if ('blockId' in value && 'blockIndex' in value) {
-        return `Block ID: ${value.blockId.toString()} | Index: ${value.blockIndex}`;
+        return `Block ID: ${String(value.blockId)} | Index: ${value.blockIndex}`;
       }
       return JSON.stringify(value);
     }
-    return value.toString();
+
+    return String(value);
   };
 
-  const renderHeader = (title: string, data: Record<string, any>) => (
+  /**
+   * Renders a section of the file analysis with a title and data
+   *
+   * @param title - The title of the section
+   * @param data - The data to render in the section
+   * @returns React component for the header section
+   */
+  const renderHeader = (title: string, data: Record<string, DisplayValue>): React.ReactNode => (
     <div className="mb-8">
       <h2 className="text-xl font-semibold mb-4">{title}</h2>
       <div className="bg-gray-100 p-4 rounded-lg">
@@ -135,8 +181,8 @@ export default function Home() {
           <div>
             <div className="grid grid-cols-2 gap-8">
               <div>
-                {renderHeader('Main Header', fileAnalysis.mainHeader)}
-                {renderHeader('Active Database Header', fileAnalysis.activeHeader)}
+                {renderHeader('Main Header', fileAnalysis.mainHeader as unknown as Record<string, DisplayValue>)}
+                {renderHeader('Active Database Header', fileAnalysis.activeHeader as unknown as Record<string, DisplayValue>)}
               </div>
               <div>
                 <BlockVisualizer blocks={fileAnalysis.blocks} blockSize={fileAnalysis.blockSize} />
