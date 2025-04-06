@@ -2,7 +2,8 @@
 
 import React, { useState } from 'react';
 import Image from 'next/image';
-import { MainHeader, DatabaseHeader, FILE_HEADER_SIZE, parseMainHeader, parseDatabaseHeader, analyzeBlocks, Block } from './utils/duckdb-parser';
+import { MainHeader, DatabaseHeader, parseMainHeader, parseDatabaseHeader, analyzeBlocks, Block } from './utils/duckdb-parser';
+import { DuckDBConstants } from './constants';
 import { isVersionSupported } from './utils/version-utils';
 import { MAX_FILE_SIZE } from './utils/file-utils';
 import BlockVisualizer from './components/BlockVisualizer';
@@ -59,7 +60,7 @@ export default function Home(): React.ReactElement {
       const buffer = await file.arrayBuffer();
 
       // Basic file size check
-      if (buffer.byteLength < FILE_HEADER_SIZE * 3) {
+      if (buffer.byteLength < DuckDBConstants.FILE_HEADER_SIZE * 3) {
         throw new Error('File size is too small for a valid DuckDB file');
       }
 
@@ -67,7 +68,7 @@ export default function Home(): React.ReactElement {
       const mainHeader = parseMainHeader(buffer);
 
       // Verify magic bytes and version
-      if (mainHeader.magic !== 'DUCK') {
+      if (mainHeader.magic !== DuckDBConstants.MAGIC_BYTES) {
         throw new Error('Invalid DuckDB file format: DUCK magic bytes not found');
       }
 
@@ -77,8 +78,8 @@ export default function Home(): React.ReactElement {
       }
 
       // Now parse the rest of the file
-      const dbHeader1 = parseDatabaseHeader(buffer, FILE_HEADER_SIZE);
-      const dbHeader2 = parseDatabaseHeader(buffer, FILE_HEADER_SIZE * 2);
+      const dbHeader1 = parseDatabaseHeader(buffer, DuckDBConstants.FILE_HEADER_SIZE);
+      const dbHeader2 = parseDatabaseHeader(buffer, DuckDBConstants.FILE_HEADER_SIZE * 2);
       const blocks = analyzeBlocks(buffer, dbHeader1, dbHeader2);
       const blockSize = Number(dbHeader1.iteration > dbHeader2.iteration ? dbHeader1.blockAllocSize : dbHeader2.blockAllocSize);
       const activeHeader = dbHeader1.iteration > dbHeader2.iteration ? dbHeader1 : dbHeader2;
@@ -106,7 +107,7 @@ export default function Home(): React.ReactElement {
       return value.map(v => String(v)).join(', ');
     }
 
-    if (typeof value === 'bigint' && value === BigInt("2449958197289549827")) {
+    if (typeof value === 'bigint' && value === DuckDBConstants.INVALID_BLOCK) {
       return '<invalid>';
     }
 

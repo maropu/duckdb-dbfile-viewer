@@ -1,32 +1,4 @@
-/**
- * Magic bytes identifier for DuckDB files
- * All valid DuckDB database files must start with this magic string
- */
-export const MAGIC_BYTES: string = "DUCK";
-
-/**
- * Size of each file header block in bytes
- * DuckDB files contain multiple header blocks of this size
- */
-export const FILE_HEADER_SIZE: number = 4096;
-
-/**
- * Maximum size for version strings in bytes
- * Used for libraryVersion and sourceId in the main header
- */
-export const MAX_VERSION_SIZE: number = 64;
-
-/**
- * Size of the checksum field in bytes
- * Used for validation of blocks and headers
- */
-export const CHECKSUM_SIZE: number = 8;
-
-/**
- * Size of the block header in bytes
- * Each block starts with a header containing checksum
- */
-export const BLOCK_HEADER_SIZE: number = 8; // Size of the checksum
+import { DuckDBConstants } from '../constants';
 
 /**
  * Enumeration of possible block statuses
@@ -105,11 +77,11 @@ export function parseMainHeader(buffer: ArrayBuffer): MainHeader {
 
   // Read checksum
   const checksum: bigint = view.getBigUint64(offset, true);
-  offset += CHECKSUM_SIZE;
+  offset += DuckDBConstants.CHECKSUM_SIZE;
 
   // Check magic bytes
   const magic: string = new TextDecoder().decode(new Uint8Array(buffer, offset, 4));
-  if (magic !== MAGIC_BYTES) {
+  if (magic !== DuckDBConstants.MAGIC_BYTES) {
     throw new Error('Invalid DuckDB file format');
   }
   offset += 4;
@@ -126,10 +98,10 @@ export function parseMainHeader(buffer: ArrayBuffer): MainHeader {
   }
 
   // Read version string
-  const libraryVersion: string = new TextDecoder().decode(new Uint8Array(buffer, offset, MAX_VERSION_SIZE)).replace(/\0+$/, '');
-  offset += MAX_VERSION_SIZE;
+  const libraryVersion: string = new TextDecoder().decode(new Uint8Array(buffer, offset, DuckDBConstants.MAX_VERSION_SIZE)).replace(/\0+$/, '');
+  offset += DuckDBConstants.MAX_VERSION_SIZE;
 
-  const sourceId: string = new TextDecoder().decode(new Uint8Array(buffer, offset, MAX_VERSION_SIZE)).replace(/\0+$/, '');
+  const sourceId: string = new TextDecoder().decode(new Uint8Array(buffer, offset, DuckDBConstants.MAX_VERSION_SIZE)).replace(/\0+$/, '');
 
   return {
     checksum,
@@ -186,7 +158,7 @@ export function parseDatabaseHeader(buffer: ArrayBuffer, headerOffset: number): 
 
   // Read checksum
   const checksum: bigint = view.getBigUint64(offset, true);
-  offset += CHECKSUM_SIZE;
+  offset += DuckDBConstants.CHECKSUM_SIZE;
 
   const iteration: bigint = view.getBigUint64(offset, true);
   offset += 8;
@@ -232,25 +204,6 @@ export function parseDatabaseHeader(buffer: ArrayBuffer, headerOffset: number): 
   };
 }
 
-// Adding constants
-/**
- * Special value representing an invalid block pointer
- * Used to mark the end of metadata block chains
- */
-const INVALID_BLOCK: bigint = BigInt("0xFFFFFFFFFFFFFFFF");
-
-/**
- * The offset where data blocks start in the file
- * After the three header blocks (main header and two database headers)
- */
-const BLOCK_START: number = FILE_HEADER_SIZE * 3;
-
-/**
- * Number of segments per metadata block
- * Each metadata block is divided into this many segments
- */
-export const META_SEGMENTS_PER_BLOCK: number = 64; // Each metablock is divided into 64 segments
-
 /**
  * Analyzes the blocks in a DuckDB file and determines their status
  *
@@ -272,14 +225,14 @@ export function analyzeBlocks(buffer: ArrayBuffer, dbHeader1: DatabaseHeader, db
   const freeBlocks: Set<bigint> = new Set<bigint>();
 
   // Calculate segment size as a constant
-  const blockHeaderSize: number = 8;
-  const segmentSize: number = alignValueFloor((blockSize - blockHeaderSize) / META_SEGMENTS_PER_BLOCK);
+  const blockHeaderSize: number = DuckDBConstants.BLOCK_HEADER_SIZE;
+  const segmentSize: number = alignValueFloor((blockSize - blockHeaderSize) / DuckDBConstants.META_SEGMENTS_PER_BLOCK);
 
   // Track used indexes within each metablock
   const metaBlockUsedIndexes: Map<string, Set<number>> = new Map<string, Set<number>>();
 
   // Parse a free list in a metadata block
-  if (activeHeader.freeList.pointer !== INVALID_BLOCK) {
+  if (activeHeader.freeList.pointer !== DuckDBConstants.INVALID_BLOCK) {
     // Track the freelist chain
     let freeListBlockId: bigint = activeHeader.freeList.blockId;
     let freeListBlockIndex: number = activeHeader.freeList.blockIndex;
@@ -291,7 +244,7 @@ export function analyzeBlocks(buffer: ArrayBuffer, dbHeader1: DatabaseHeader, db
     }
     metaBlockUsedIndexes.get(blockKey)!.add(freeListBlockIndex);
 
-    const blockOffset: number = BLOCK_START + Number(freeListBlockId) * blockSize + blockHeaderSize +
+    const blockOffset: number = DuckDBConstants.BLOCK_START + Number(freeListBlockId) * blockSize + blockHeaderSize +
                        (freeListBlockIndex * segmentSize);
 
     // Check if not exceeding buffer size
@@ -318,7 +271,7 @@ export function analyzeBlocks(buffer: ArrayBuffer, dbHeader1: DatabaseHeader, db
   let currentMetaBlockPointer: bigint = activeHeader.metaBlock.pointer;
   let currentMetaBlockId: bigint = activeHeader.metaBlock.blockId;
   let currentMetaBlockIndex: number = activeHeader.metaBlock.blockIndex;
-  while (currentMetaBlockPointer !== INVALID_BLOCK) {
+  while (currentMetaBlockPointer !== DuckDBConstants.INVALID_BLOCK) {
     try {
       // Add metadata index to used indexes
       const blockKey: string = currentMetaBlockId.toString();
@@ -327,7 +280,7 @@ export function analyzeBlocks(buffer: ArrayBuffer, dbHeader1: DatabaseHeader, db
       }
       metaBlockUsedIndexes.get(blockKey)!.add(currentMetaBlockIndex);
 
-      const blockOffset: number = BLOCK_START + Number(currentMetaBlockId) * blockSize + blockHeaderSize +
+      const blockOffset: number = DuckDBConstants.BLOCK_START + Number(currentMetaBlockId) * blockSize + blockHeaderSize +
                          (currentMetaBlockIndex * segmentSize);
       // Check if not exceeding buffer size
       if (blockOffset < 0 || blockOffset >= buffer.byteLength) {
@@ -349,7 +302,7 @@ export function analyzeBlocks(buffer: ArrayBuffer, dbHeader1: DatabaseHeader, db
     try {
       const blockId: bigint = BigInt(i);
       const blockKey: string = blockId.toString();
-      const offset: number = BLOCK_START + i * blockSize;
+      const offset: number = DuckDBConstants.BLOCK_START + i * blockSize;
       // Check if not exceeding buffer size
       if (offset < 0 || offset >= buffer.byteLength) {
         console.error(`Invalid block offset for block ${i}: ${offset}, buffer size: ${buffer.byteLength}`);
@@ -365,7 +318,7 @@ export function analyzeBlocks(buffer: ArrayBuffer, dbHeader1: DatabaseHeader, db
         // Prepare the metaSegments array with usage information
         const usedIndexes: Set<number> = metaBlockUsedIndexes.get(blockKey) || new Set<number>();
 
-        const metaSegments: Array<{used: boolean, index: number}> = Array.from({ length: META_SEGMENTS_PER_BLOCK }, (_, j) => ({
+        const metaSegments: Array<{used: boolean, index: number}> = Array.from({ length: DuckDBConstants.META_SEGMENTS_PER_BLOCK }, (_, j) => ({
           used: usedIndexes.has(j),
           index: j
         }));

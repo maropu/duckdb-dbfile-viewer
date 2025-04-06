@@ -1,4 +1,5 @@
-import { Block, BlockStatus, META_SEGMENTS_PER_BLOCK } from '../utils/duckdb-parser';
+import { Block, BlockStatus } from '../utils/duckdb-parser';
+import { DuckDBConstants } from '../constants';
 import React from 'react';
 
 /**
@@ -69,7 +70,7 @@ function formatSize(bytes: number): string {
  */
 export default function BlockVisualizer({ blocks, blockSize }: BlockVisualizerProps): React.ReactElement {
   // Calculate segment size as a constant
-  const segmentSize: number = blockSize / META_SEGMENTS_PER_BLOCK;
+  const segmentSize: number = blockSize / DuckDBConstants.META_SEGMENTS_PER_BLOCK;
 
   return (
     <div className="mt-8">

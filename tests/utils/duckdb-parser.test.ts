@@ -1,14 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { analyzeBlocks, META_SEGMENTS_PER_BLOCK, BlockStatus, parseMainHeader, parseDatabaseHeader } from '../../src/app/utils/duckdb-parser';
+import { analyzeBlocks, BlockStatus, parseMainHeader, parseDatabaseHeader } from '../../src/app/utils/duckdb-parser';
 import { DatabaseHeader } from '../../src/app/utils/duckdb-parser';
+import { DuckDBConstants } from '../../src/app/constants';
 import fs from 'fs';
 import path from 'path';
 
 describe('DuckDB Parser Tests', () => {
-  // Constants for testing
-  const FILE_HEADER_SIZE = 4096;
-  const BLOCK_START = FILE_HEADER_SIZE * 3;
-
   // Spy on console.error to suppress errors during tests
   beforeEach(() => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -26,22 +23,20 @@ describe('DuckDB Parser Tests', () => {
     };
 
     // Create a buffer large enough for a few blocks
-    const blockSize = 4096;
-    const blockHeaderSize = 8;
     const numBlocks = 8; // Increase buffer size
-    const buffer = new ArrayBuffer(BLOCK_START + blockSize * numBlocks);
+    const buffer = new ArrayBuffer(DuckDBConstants.BLOCK_START + DuckDBConstants.FILE_HEADER_SIZE * numBlocks);
     const view = new DataView(buffer);
 
     // Initialize file headers with some dummy data (3 * FILE_HEADER_SIZE bytes)
-    for (let i = 0; i < BLOCK_START; i += 8) {
+    for (let i = 0; i < DuckDBConstants.BLOCK_START; i += 8) {
       view.setBigUint64(i, BigInt(0), true);
     }
 
-    const segmentSize = alignValueFloor((blockSize - blockHeaderSize) / META_SEGMENTS_PER_BLOCK);
+    const segmentSize = alignValueFloor((DuckDBConstants.FILE_HEADER_SIZE - DuckDBConstants.BLOCK_HEADER_SIZE) / DuckDBConstants.META_SEGMENTS_PER_BLOCK);
 
     // Set up a metadata block at position 1
     const metaBlockId = 1;
-    const metaBlockOffset = BLOCK_START + blockSize * metaBlockId + blockHeaderSize;
+    const metaBlockOffset = DuckDBConstants.BLOCK_START + DuckDBConstants.FILE_HEADER_SIZE * metaBlockId + DuckDBConstants.BLOCK_HEADER_SIZE;
 
     // Set up a few used segments in the metadata block
     const usedSegments = [0, 2, 5, 10, 20, 30, 40, 63]; // Example segments that are used
@@ -61,7 +56,7 @@ describe('DuckDB Parser Tests', () => {
         nextSegmentPointer = (BigInt(nextSegmentIndex) << BigInt(56)) | (BigInt(metaBlockId) & BigInt("0x00FFFFFFFFFFFFFF"));
       } else {
         // For the last segment, use INVALID_BLOCK pointer
-        nextSegmentPointer = BigInt("0xFFFFFFFFFFFFFFFF");
+        nextSegmentPointer = DuckDBConstants.INVALID_BLOCK;
       }
 
       // Write the next segment pointer to the first 8 bytes of the segment
@@ -85,7 +80,7 @@ describe('DuckDB Parser Tests', () => {
       // Use a special encoding for the pointer that matches the implementation
       // Combine the block ID with a 0 index (low 56 bits for block ID, high 8 bits for index)
       const pointer = blockId === BigInt(-1)
-        ? BigInt("0xFFFFFFFFFFFFFFFF") // INVALID_BLOCK
+        ? DuckDBConstants.INVALID_BLOCK // INVALID_BLOCK
         : blockId;
 
       return {
@@ -101,7 +96,7 @@ describe('DuckDB Parser Tests', () => {
       metaBlock: createPointer(metaBlockPointer),
       freeList: createPointer(freeListPointer),
       blockCount: BigInt(8), // Match buffer size
-      blockAllocSize: BigInt(4096),
+      blockAllocSize: BigInt(DuckDBConstants.FILE_HEADER_SIZE),
       vectorSize: BigInt(1024),
       serializationCompatibility: BigInt(0)
     };
@@ -141,7 +136,7 @@ describe('DuckDB Parser Tests', () => {
         const segments = metaBlock.metaSegments;
 
         // Make sure we have the correct number of segments
-        expect(segments.length).toBe(META_SEGMENTS_PER_BLOCK);
+        expect(segments.length).toBe(DuckDBConstants.META_SEGMENTS_PER_BLOCK);
 
         // Check that we have exactly the right number of used segments
         const usedSegmentCount = segments.filter(segment => segment.used).length;
@@ -178,8 +173,8 @@ describe('DuckDB Parser Tests', () => {
 
         // Parse headers
         const mainHeader = parseMainHeader(buffer);
-        const dbHeader1 = parseDatabaseHeader(buffer, FILE_HEADER_SIZE);
-        const dbHeader2 = parseDatabaseHeader(buffer, FILE_HEADER_SIZE * 2);
+        const dbHeader1 = parseDatabaseHeader(buffer, DuckDBConstants.FILE_HEADER_SIZE);
+        const dbHeader2 = parseDatabaseHeader(buffer, DuckDBConstants.FILE_HEADER_SIZE * 2);
 
         // Get active header (the one with higher iteration)
         const activeHeader = dbHeader1.iteration > dbHeader2.iteration ? dbHeader1 : dbHeader2;
@@ -207,7 +202,7 @@ describe('DuckDB Parser Tests', () => {
 
         // Check that we have metadata segments
         expect(metaBlock?.metaSegments).toBeDefined();
-        expect(metaBlock?.metaSegments?.length).toBe(META_SEGMENTS_PER_BLOCK);
+        expect(metaBlock?.metaSegments?.length).toBe(DuckDBConstants.META_SEGMENTS_PER_BLOCK);
 
         // Check if we have some used metadata segments
         if (metaBlock && metaBlock.metaSegments) {
