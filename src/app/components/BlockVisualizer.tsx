@@ -1,11 +1,22 @@
 import { Block, BlockStatus, META_SEGMENTS_PER_BLOCK } from '../utils/duckdb-parser';
+import React from 'react';
 
+/**
+ * Props for the BlockVisualizer component
+ * @interface BlockVisualizerProps
+ */
 interface BlockVisualizerProps {
+  /** Array of blocks to visualize */
   blocks: Block[];
+  /** Size of each block in bytes */
   blockSize: number;
 }
 
-const statusColors = {
+/**
+ * Mapping of block statuses to their display colors
+ * @type {Record<BlockStatus, string>}
+ */
+const statusColors: Record<BlockStatus, string> = {
   [BlockStatus.FREE]: 'bg-yellow-400',
   [BlockStatus.USED]: 'bg-blue-500',
   [BlockStatus.METADATA]: 'bg-green-500',
@@ -14,7 +25,11 @@ const statusColors = {
   [BlockStatus.INVALID]: 'bg-red-500'
 };
 
-const statusLabels = {
+/**
+ * Mapping of block statuses to their display labels
+ * @type {Record<BlockStatus, string>}
+ */
+const statusLabels: Record<BlockStatus, string> = {
   [BlockStatus.FREE]: 'Free',
   [BlockStatus.USED]: 'Data',
   [BlockStatus.METADATA]: 'Metadata',
@@ -23,10 +38,16 @@ const statusLabels = {
   [BlockStatus.INVALID]: 'Invalid'
 };
 
+/**
+ * Formats a byte size to a human-readable string with appropriate units
+ *
+ * @param bytes - The size in bytes to format
+ * @returns A formatted string with units (e.g., "1.5 MB")
+ */
 function formatSize(bytes: number): string {
-  const units = ['B', 'KB', 'MB', 'GB'];
-  let size = bytes;
-  let unitIndex = 0;
+  const units: string[] = ['B', 'KB', 'MB', 'GB'];
+  let size: number = bytes;
+  let unitIndex: number = 0;
 
   while (size >= 1024 && unitIndex < units.length - 1) {
     size /= 1024;
@@ -36,9 +57,19 @@ function formatSize(bytes: number): string {
   return `${size.toFixed(1)} ${units[unitIndex]}`;
 }
 
-export default function BlockVisualizer({ blocks, blockSize }: BlockVisualizerProps) {
+/**
+ * BlockVisualizer component
+ *
+ * Renders a visual representation of DuckDB database file blocks,
+ * showing their status and layout. Metadata blocks are displayed as
+ * a grid of segments, while regular blocks are shown as solid squares.
+ *
+ * @param props - The component props
+ * @returns A React component for visualizing DuckDB blocks
+ */
+export default function BlockVisualizer({ blocks, blockSize }: BlockVisualizerProps): React.ReactElement {
   // Calculate segment size as a constant
-  const segmentSize = blockSize / META_SEGMENTS_PER_BLOCK;
+  const segmentSize: number = blockSize / META_SEGMENTS_PER_BLOCK;
 
   return (
     <div className="mt-8">
@@ -74,15 +105,15 @@ export default function BlockVisualizer({ blocks, blockSize }: BlockVisualizerPr
         >
           {blocks.map((block) => {
             // Check if this is a metadata block with segments
-            const isMetaBlock = block.status === BlockStatus.METADATA && block.metaSegments;
+            const isMetaBlock: boolean = block.status === BlockStatus.METADATA && !!block.metaSegments;
 
             // Calculate the position in the grid
-            const blockNum = Number(block.id);
-            const row = Math.floor(blockNum / 16);
-            const col = blockNum % 16;
+            const blockNum: number = Number(block.id);
+            const row: number = Math.floor(blockNum / 16);
+            const col: number = blockNum % 16;
 
             // For metadata blocks, we need a special positioning to ensure they don't overlap
-            const gridStyles = {
+            const gridStyles: React.CSSProperties = {
               gridColumnStart: col + 1,
               gridRowStart: row + 1,
               gridColumnEnd: 'span 1',
@@ -93,9 +124,7 @@ export default function BlockVisualizer({ blocks, blockSize }: BlockVisualizerPr
               <div
                 key={`block-${String(block.id)}`}
                 className="relative aspect-square"
-                style={{
-                  ...gridStyles
-                }}
+                style={gridStyles}
               >
                 {isMetaBlock ? (
                   // Render 8x8 grid of meta segments for metadata blocks
@@ -107,7 +136,7 @@ export default function BlockVisualizer({ blocks, blockSize }: BlockVisualizerPr
                     }}
                   >
                     {block.metaSegments?.map((segment) => {
-                      const segmentColor = segment.used ?
+                      const segmentColor: string = segment.used ?
                         statusColors[BlockStatus.META_SEGMENT_USED] :
                         statusColors[BlockStatus.META_SEGMENT_FREE];
 
