@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import BlockVisualizer from '../../src/app/components/BlockVisualizer';
-import { Block, BlockStatus, META_SEGMENTS_PER_BLOCK } from '../../src/app/utils/duckdb-parser';
+import { Block, BlockStatus } from '../../src/app/utils/duckdb-parser';
 
 // Mock setup (from unit.test.tsx)
 vi.mock('../../src/app/utils/duckdb-parser', () => ({
@@ -13,15 +13,16 @@ vi.mock('../../src/app/utils/duckdb-parser', () => ({
     META_SEGMENT_USED: 'META_SEGMENT_USED',
     META_SEGMENT_FREE: 'META_SEGMENT_FREE',
     INVALID: 'INVALID'
-  },
-  META_SEGMENTS_PER_BLOCK: 64
+  }
 }));
 
 describe('BlockVisualizer Component', () => {
+  const blockSize = 4096;
+  const meta_segments_per_block = 64;
+
   // Create more realistic mock block data
   const createMockBlocks = (): Block[] => {
     const blocks: Block[] = [];
-    const blockSize = 4096;
 
     // Add a few free blocks
     blocks.push({
@@ -42,7 +43,7 @@ describe('BlockVisualizer Component', () => {
     }
 
     // Add a metadata block with segments
-    const metaSegments = Array(META_SEGMENTS_PER_BLOCK).fill(0).map((_, index) => ({
+    const metaSegments = Array(meta_segments_per_block).fill(0).map((_, index) => ({
       index,
       used: index % 3 === 0 // Make every third segment used
     }));
@@ -56,6 +57,48 @@ describe('BlockVisualizer Component', () => {
     });
 
     return blocks;
+  };
+
+  // Create test blocks without invalid blocks
+  const createBlocksWithoutInvalid = (): Block[] => {
+    return [
+      {
+        id: BigInt(0),
+        status: BlockStatus.FREE,
+        offset: 0,
+        checksum: BigInt(123)
+      },
+      {
+        id: BigInt(1),
+        status: BlockStatus.USED,
+        offset: blockSize,
+        checksum: BigInt(456),
+        unusedBytes: 1024 // 25% unused
+      },
+      {
+        id: BigInt(2),
+        status: BlockStatus.METADATA,
+        offset: blockSize * 2,
+        checksum: BigInt(789),
+        metaSegments: Array(meta_segments_per_block).fill(0).map((_, i) => ({
+          used: i % 2 === 0,
+          index: i
+        }))
+      }
+    ];
+  };
+
+  // Create test blocks with invalid blocks
+  const createBlocksWithInvalid = (): Block[] => {
+    return [
+      ...createBlocksWithoutInvalid(),
+      {
+        id: BigInt(3),
+        status: BlockStatus.INVALID,
+        offset: blockSize * 3,
+        checksum: BigInt(101112)
+      }
+    ];
   };
 
   // Unit tests (from unit.test.tsx)
@@ -130,6 +173,47 @@ describe('BlockVisualizer Component', () => {
         // For now, just verify the component renders without errors
         expect(true).toBeTruthy();
       }
+    });
+  });
+
+  describe('Invalid Block Legend Tests', () => {
+    it('should not show Invalid in legend when no invalid blocks exist', () => {
+      const blocks = createBlocksWithoutInvalid();
+      render(<BlockVisualizer blocks={blocks} blockSize={blockSize} />);
+
+      // Check that Invalid is not in the legend
+      const legendItems = screen.queryByText('Invalid');
+      expect(legendItems).not.toBeInTheDocument();
+    });
+
+    it('should show Invalid in legend when invalid blocks exist', () => {
+      const blocks = createBlocksWithInvalid();
+      render(<BlockVisualizer blocks={blocks} blockSize={blockSize} />);
+
+      // Check that Invalid is in the legend
+      const legendItems = screen.getByText('Invalid');
+      expect(legendItems).toBeInTheDocument();
+    });
+
+    it('should show correct number of blocks with and without invalid blocks', () => {
+      // Test without invalid blocks
+      const blocksWithoutInvalid = createBlocksWithoutInvalid();
+      const { container: containerWithoutInvalid } = render(
+        <BlockVisualizer blocks={blocksWithoutInvalid} blockSize={blockSize} />
+      );
+      const blockElementsWithoutInvalid = containerWithoutInvalid.querySelectorAll('.aspect-square');
+      expect(blockElementsWithoutInvalid.length).toBe(3); // Free + Used + Metadata
+
+      // Cleanup previous render
+      render(<div />);
+
+      // Test with invalid blocks
+      const blocksWithInvalid = createBlocksWithInvalid();
+      const { container: containerWithInvalid } = render(
+        <BlockVisualizer blocks={blocksWithInvalid} blockSize={blockSize} />
+      );
+      const blockElementsWithInvalid = containerWithInvalid.querySelectorAll('.aspect-square');
+      expect(blockElementsWithInvalid.length).toBe(4); // Free + Used + Metadata + Invalid
     });
   });
 });

@@ -22,6 +22,7 @@ export interface Block {
   status: BlockStatus;
   offset?: number;
   checksum?: bigint;
+  unusedBytes?: number;  // Number of unused bytes at the end of the block
   // For metadata blocks, store usage information for all 64 segments
   metaSegments?: Array<{
     used: boolean;
@@ -255,7 +256,7 @@ export function analyzeBlocks(buffer: ArrayBuffer, dbHeader1: DatabaseHeader, db
     // Read the total number of free blocks in the first metadata block
     const view: DataView = new DataView(buffer, blockOffset);
     const freeListCount: bigint = view.getBigUint64(8, true);
-    console.log(`Free list count: ${freeListCount}`);
+
     if (freeListCount > BigInt(Math.floor(segmentSize / 8) - 2)) {
       throw new Error(`Free list count is too large: count=${freeListCount}`);
     }
@@ -334,7 +335,25 @@ export function analyzeBlocks(buffer: ArrayBuffer, dbHeader1: DatabaseHeader, db
       } else if (freeBlocks.has(blockId)) {
         blocks.push({ id: blockId, status: BlockStatus.FREE, offset, checksum });
       } else {
-        blocks.push({ id: blockId, status: BlockStatus.USED, offset, checksum });
+        // Calculate unused bytes at the end of USED blocks
+        let unusedBytes = 0;
+
+        // Count consecutive zero bytes from the end
+        for (let j = blockSize - 1; j >= 0; j--) {
+          if (view.getUint8(j) === 0) {
+            unusedBytes++;
+          } else {
+            break;
+          }
+        }
+
+        blocks.push({
+          id: blockId,
+          status: BlockStatus.USED,
+          offset,
+          checksum,
+          unusedBytes
+        });
       }
     } catch (error) {
       console.error(`Error processing block ${i}:`, error);

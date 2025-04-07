@@ -58,6 +58,26 @@ function formatSize(bytes: number): string {
   return `${size.toFixed(1)} ${units[unitIndex]}`;
 }
 
+// Function to determine the color based on usage percentage
+function getUsageColor(block: Block, blockSize: number): string {
+  if (block.status !== BlockStatus.USED || block.unusedBytes === undefined) {
+    return statusColors[block.status];
+  }
+
+  const usedBytes = blockSize - block.unusedBytes;
+  const usagePercentage = (usedBytes / blockSize) * 100;
+
+  if (usagePercentage >= 75) {
+    return 'bg-blue-800'; // Very high usage (75-100%)
+  } else if (usagePercentage >= 50) {
+    return 'bg-blue-600'; // High usage (50-75%)
+  } else if (usagePercentage >= 25) {
+    return 'bg-blue-400'; // Medium usage (25-50%)
+  } else {
+    return 'bg-blue-200'; // Low usage (0-25%)
+  }
+}
+
 /**
  * BlockVisualizer component
  *
@@ -72,6 +92,9 @@ export default function BlockVisualizer({ blocks, blockSize }: BlockVisualizerPr
   // Calculate segment size as a constant
   const segmentSize: number = blockSize / DuckDBConstants.META_SEGMENTS_PER_BLOCK;
 
+  // Check if there are any invalid blocks
+  const hasInvalidBlocks = blocks.some(block => block.status === BlockStatus.INVALID);
+
   return (
     <div className="mt-8">
       <div className="flex justify-between items-center mb-4">
@@ -82,15 +105,42 @@ export default function BlockVisualizer({ blocks, blockSize }: BlockVisualizerPr
       </div>
 
       {/* Legend */}
-      <div className="mb-4 flex flex-wrap gap-4">
-        {Object.entries(statusColors)
-          .filter(([status]) => status !== BlockStatus.META_SEGMENT_FREE && status !== BlockStatus.META_SEGMENT_USED)
-          .map(([status, color]) => (
-            <div key={status} className="flex items-center">
-              <div className={`w-4 h-4 ${color} mr-2`}></div>
-              <span>{statusLabels[status as BlockStatus]}</span>
+      <div className="mb-4">
+        {/* Single row with all block types */}
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+          {/* Data usage levels */}
+          <div className="flex items-center">
+            <div className="w-4 h-4 bg-blue-800 mr-2"></div>
+            <span>Data (75-100%)</span>
+          </div>
+          <div className="flex items-center">
+            <div className="w-4 h-4 bg-blue-600 mr-2"></div>
+            <span>Data (50-75%)</span>
+          </div>
+          <div className="flex items-center">
+            <div className="w-4 h-4 bg-blue-400 mr-2"></div>
+            <span>Data (25-50%)</span>
+          </div>
+          <div className="flex items-center">
+            <div className="w-4 h-4 bg-blue-200 mr-2"></div>
+            <span>Data (0-25%)</span>
+          </div>
+          {/* Other block types */}
+          <div className="flex items-center">
+            <div className={`w-4 h-4 ${statusColors[BlockStatus.METADATA]} mr-2`}></div>
+            <span>Metadata</span>
+          </div>
+          <div className="flex items-center">
+            <div className={`w-4 h-4 ${statusColors[BlockStatus.FREE]} mr-2`}></div>
+            <span>Free</span>
+          </div>
+          {hasInvalidBlocks && (
+            <div className="flex items-center">
+              <div className={`w-4 h-4 ${statusColors[BlockStatus.INVALID]} mr-2`}></div>
+              <span>Invalid</span>
             </div>
-          ))}
+          )}
+        </div>
       </div>
 
       {/* Main Block Grid */}
@@ -155,12 +205,14 @@ Offset: ${block.offset !== undefined ? block.offset + segmentSize * segment.inde
                 ) : (
                   // Render regular block
                   <div
-                    className={`w-full h-full ${statusColors[block.status]} rounded cursor-pointer transition-colors hover:opacity-80`}
+                    className={`w-full h-full ${getUsageColor(block, blockSize)} rounded cursor-pointer transition-colors hover:opacity-80`}
                     title={`Block ${String(block.id)}
 Status: ${statusLabels[block.status]}
 Offset: ${block.offset !== undefined ? block.offset : 'N/A'}
 Checksum: ${block.checksum !== undefined ? String(block.checksum) : 'N/A'}
-Size: ${formatSize(blockSize)}`}
+Size: ${formatSize(blockSize)}
+${block.status === BlockStatus.USED && block.unusedBytes !== undefined ?
+  `Used: ${formatSize(blockSize - block.unusedBytes)} (${Math.round((blockSize - block.unusedBytes) / blockSize * 100)}%)` : ''}`}
                   />
                 )}
               </div>
