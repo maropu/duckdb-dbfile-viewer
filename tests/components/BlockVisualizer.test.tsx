@@ -129,7 +129,10 @@ describe('BlockVisualizer Component', () => {
 
       // Check legend items
       expect(screen.getByText('Free')).toBeInTheDocument();
-      expect(screen.getByText('Data')).toBeInTheDocument();
+      expect(screen.getByText('Data (75-100%)')).toBeInTheDocument();
+      expect(screen.getByText('Data (50-75%)')).toBeInTheDocument();
+      expect(screen.getByText('Data (25-50%)')).toBeInTheDocument();
+      expect(screen.getByText('Data (0-25%)')).toBeInTheDocument();
       expect(screen.getByText('Metadata')).toBeInTheDocument();
 
       // Check block size information
